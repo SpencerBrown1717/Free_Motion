@@ -1,37 +1,35 @@
 # Free Motion
 
-Open source AI motion layer for drones, robots, and Raspberry Pi builds.
+**OpenClaw flies drones.** Open source AI motion layer for drones, robots, and Raspberry Pi.
 
-Free Motion connects OpenClaw style command systems to real hardware. A user sends a command, the Raspberry Pi receives instructions through Telegram, runs on board logic, and controls the connected drone or robot.
+OpenClaw sends messages through **Telegram** to a **Raspberry Pi**. The Pi runs **two models** on board — **one vision**, **one mission control** — and the **drone flies**.
 
 ## Live site
 [Free Motion website](https://spencerbrown1717.github.io/Free_Motion/)
 
 ## What it does
-- Sends missions through Telegram
-- Runs mission control locally on Raspberry Pi
-- Uses a visual model to understand the camera feed
-- Controls drones, robots, or other moving hardware
-- Reports status back during operation
+- Telegram as the pipe from OpenClaw to the Pi
+- Two on-device models: vision + mission control
+- Executes flight on the drone (and can extend to other robots)
+- Status and feedback during operation
 
 ## How it works
-1. User sends a command through Telegram
-2. Raspberry Pi runs two models
-3. Device executes the motion task
-4. System reports back what it is doing and seeing
+1. OpenClaw sends the command via Telegram to the Raspberry Pi
+2. The Pi runs the vision model and the mission control model
+3. The drone executes the motion; you get updates as it runs
 
 ## Stack
 - HTML landing page
 - Raspberry Pi
-- Telegram bot
+- Telegram (OpenClaw → Pi)
 - Mission control model
-- Visual model
+- Vision model
 
 ## Status
 Hackathon stage, open source, MIT licensed.
 
 ## Contributing
-Pull requests, issues, and ideas are welcome.
+Pull requests, issues, and ideas are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 MIT

@@ -10,3 +10,6 @@ labels: enhancement
 ## Why it matters
 
 ## Possible approach
+
+<!-- e.g. OpenClaw, Telegram, Pi, vision model, mission control, hardware -->
+
