@@ -1,134 +1,563 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Free Motion</title>
-    <meta
-      name="description"
-      content="Free Motion — OpenClaw flies drones. Telegram to Raspberry Pi, vision + mission control models, open source."
-    />
-    <style>
-      :root {
-        color-scheme: light dark;
-        --fg: CanvasText;
-        --muted: color-mix(in oklab, CanvasText 72%, Canvas);
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        line-height: 1.55;
-        color: var(--fg);
-        background: Canvas;
-      }
-      nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem 1.25rem;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1rem clamp(1.25rem, 4vw, 2rem);
-        border-bottom: 1px solid color-mix(in oklab, CanvasText 14%, Canvas);
-      }
-      nav div {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem 1.25rem;
-        align-items: center;
-      }
-      nav strong {
-        font-size: 1rem;
-      }
-      main {
-        flex: 1;
-        max-width: 40rem;
-        margin: 0 auto;
-        padding: clamp(1.5rem, 5vw, 3rem) 1.25rem;
-      }
-      h1 {
-        font-weight: 700;
-        font-size: clamp(1.75rem, 5vw, 2.25rem);
-        letter-spacing: -0.02em;
-        margin: 0 0 0.5rem;
-      }
-      p {
-        margin: 0 0 1rem;
-        color: var(--muted);
-      }
-      ul {
-        margin: 1rem 0 0;
-        padding-left: 1.2rem;
-      }
-      li {
-        margin: 0.35rem 0;
-      }
-      a {
-        color: LinkText;
-      }
-      a:visited {
-        color: VisitedText;
-      }
-      .cta {
-        display: inline-block;
-        margin: 1.25rem 0 0;
-        padding: 0.65rem 1.1rem;
-        font-weight: 600;
-        text-decoration: none;
-        border-radius: 0.375rem;
-        border: 1px solid color-mix(in oklab, CanvasText 22%, Canvas);
-        background: color-mix(in oklab, CanvasText 8%, Canvas);
-      }
-      .cta:hover {
-        background: color-mix(in oklab, CanvasText 12%, Canvas);
-      }
-      footer {
-        padding: 1.25rem clamp(1.25rem, 4vw, 2rem);
-        border-top: 1px solid color-mix(in oklab, CanvasText 14%, Canvas);
-        font-size: 0.875rem;
-        color: var(--muted);
-      }
-      footer a {
-        color: LinkText;
-      }
-    </style>
-  </head>
-  <body>
-    <nav>
-      <strong>Free Motion</strong>
-      <div>
-        <a href="https://spencerbrown1717.github.io/Free_Motion/">Live site</a>
-        <a href="https://github.com/SpencerBrown1717/Free_Motion">GitHub</a>
-        <a href="https://www.freemotion.tech/">freemotion.tech</a>
-      </div>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Free Motion — Let your lobster fly drones.</title>
+<meta name="description" content="The AI motion layer for drones and robots. Telegram in. Quadcopter out. Open source." />
+<meta name="theme-color" content="#fafaf7" />
+<meta name="color-scheme" content="light dark" />
+<meta name="format-detection" content="telephone=no" />
+
+<meta property="og:title" content="Free Motion" />
+<meta property="og:description" content="Let your lobster fly drones. Open source, MIT licensed." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Free Motion" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%231d4ed8'/><circle cx='12' cy='14' r='2' fill='white'/><circle cx='20' cy='14' r='2' fill='white'/><path d='M 9 21 Q 16 26 23 21' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/></svg>" />
+
+<style>
+  :root {
+    --bg: #fafaf7;
+    --bg-elev: rgba(255,255,255,0.72);
+    --ink: #0c0c0c;
+    --ink-soft: #555;
+    --ink-mute: #8a8a85;
+    --rule: #e7e5dc;
+    --blue: #1d4ed8;
+    --blue-deep: #1e3a8a;
+    --blue-soft: #dbeafe;
+    --shadow: 0 10px 28px rgba(12, 12, 12, 0.05);
+    --shadow-soft: 0 16px 40px rgba(29, 78, 216, 0.08);
+    --sans: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0c0c;
+      --bg-elev: rgba(20,20,20,0.78);
+      --ink: #fafaf7;
+      --ink-soft: #b5b5b0;
+      --ink-mute: #6f6f6a;
+      --rule: #232320;
+      --blue-soft: #15233f;
+      --shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+      --shadow-soft: 0 16px 40px rgba(0, 0, 0, 0.34);
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top, rgba(29, 78, 216, 0.07), transparent 34%),
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  img, svg { display: block; max-width: 100%; }
+  ::selection { background: var(--blue); color: var(--bg); }
+
+  :focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 3px;
+    border-radius: 10px;
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+  .skip-link {
+    position: absolute;
+    left: 12px;
+    top: -48px;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 10px 12px;
+    border-radius: 10px;
+    z-index: 20;
+  }
+
+  .skip-link:focus { top: 12px; }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg-elev);
+    backdrop-filter: saturate(150%) blur(10px);
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+  }
+
+  .header-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
+
+  .header-links a:hover,
+  .header-links a:focus-visible { color: var(--blue); }
+
+  .hero {
+    text-align: center;
+    padding: 56px 0 56px;
+    border-top: none;
+  }
+
+  .lobster-stage {
+    width: min(220px, 62vw);
+    aspect-ratio: 1 / 1;
+    margin: 0 auto 24px;
+    position: relative;
+  }
+
+  .lobster { animation: float 4.5s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  .mini-drone { animation: drone-bob 2.4s ease-in-out infinite; transform-box: fill-box; }
+
+  @keyframes drone-bob {
+    0%, 100% { transform: translate(110px, 28px) rotate(-3deg); }
+    50% { transform: translate(110px, 24px) rotate(3deg); }
+  }
+
+  .prop { animation: spin 0.35s linear infinite; transform-box: fill-box; transform-origin: center; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  h1 {
+    font-size: clamp(46px, 9vw, 76px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    margin: 0 0 14px;
+  }
+
+  .tagline {
+    font-size: clamp(20px, 3vw, 24px);
+    font-weight: 500;
+    color: var(--ink);
+    margin: 0 0 10px;
+    letter-spacing: -0.015em;
+  }
+
+  .blurb {
+    font-size: 16px;
+    color: var(--ink-soft);
+    margin: 0 auto 30px;
+    max-width: 34rem;
+  }
+
+  .ctas {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 11px 18px;
+    border-radius: 12px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+    box-shadow: var(--shadow);
+    transition: transform .15s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+  }
+
+  .btn:hover,
+  .btn:focus-visible {
+    background: var(--blue);
+    border-color: var(--blue);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .btn.ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--rule);
+    box-shadow: none;
+  }
+
+  .btn.ghost:hover,
+  .btn.ghost:focus-visible {
+    background: var(--blue-soft);
+    border-color: var(--blue);
+    color: var(--blue-deep);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .btn.ghost:hover,
+    .btn.ghost:focus-visible { color: #93c5fd; }
+  }
+
+  .btn svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+  }
+
+  .micro-note {
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-mute);
+  }
+
+  section { padding: 48px 0; border-top: 1px solid var(--rule); }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--blue);
+    margin: 0 0 22px;
+    font-weight: 500;
+  }
+
+  .section-label::before { content: "⟩ "; }
+
+  .flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .flow-step {
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 18px 14px;
+    text-align: center;
+    background: var(--bg);
+  }
+
+  .flow-step .icon {
+    font-size: 26px;
+    margin-bottom: 8px;
+    line-height: 1;
+  }
+
+  .flow-step b {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .flow-step span {
+    font-size: 13px;
+    color: var(--ink-mute);
+  }
+
+  .arrow {
+    align-self: center;
+    color: var(--ink-mute);
+    font-family: var(--mono);
+    font-size: 18px;
+  }
+
+  .parts {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .parts li {
+    display: grid;
+    grid-template-columns: 28px 160px 1fr;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+    font-size: 15px;
+  }
+
+  .parts li:last-child { border-bottom: none; }
+  .parts .num { font-family: var(--mono); font-size: 12px; color: var(--ink-mute); }
+  .parts b { font-weight: 600; }
+  .parts li > span:last-child { color: var(--ink-soft); }
+
+  .sister {
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 20px 22px;
+    background: var(--blue-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .sister p {
+    margin: 0;
+    font-size: 15px;
+    color: var(--blue-deep);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .sister p { color: #cbd5e1; }
+  }
+
+  .sister b { font-weight: 600; }
+
+  .sister a {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--blue);
+    border-bottom: 1px solid currentColor;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .sister a { color: #93c5fd; }
+  }
+
+  footer {
+    padding: 28px 0 40px;
+    text-align: center;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-mute);
+  }
+
+  footer a { color: var(--ink-soft); }
+  footer a:hover,
+  footer a:focus-visible { color: var(--blue); }
+
+  @media (max-width: 600px) {
+    .header-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .flow { grid-template-columns: 1fr; }
+    .arrow { transform: rotate(90deg); padding: 4px 0; justify-self: center; }
+  }
+
+  @media (max-width: 540px) {
+    .parts li { grid-template-columns: 28px 1fr; }
+    .parts li > span:last-child { grid-column: 2; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header>
+  <div class="header-row">
+    <a href="#top" class="brand" aria-label="Free Motion home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="14" fill="#1d4ed8"></circle>
+        <circle cx="12" cy="14" r="2" fill="white"></circle>
+        <circle cx="20" cy="14" r="2" fill="white"></circle>
+        <path d="M 9 21 Q 16 26 23 21" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"></path>
+      </svg>
+      <span>Free Motion</span>
+    </a>
+    <nav class="header-links" aria-label="Primary">
+      <a href="https://github.com/YOUR_USERNAME/free-motion" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="#how">How it works</a>
+      <a href="#inside">What’s inside</a>
     </nav>
-    <main>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div class="lobster-stage" aria-hidden="true">
+        <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Blue lobster flying a drone">
+          <g class="mini-drone">
+            <line x1="-18" y1="0" x2="18" y2="0" stroke="#1e3a8a" stroke-width="2.2" stroke-linecap="round"></line>
+            <line x1="0" y1="-14" x2="0" y2="14" stroke="#1e3a8a" stroke-width="2.2" stroke-linecap="round"></line>
+            <ellipse class="prop" cx="-18" cy="0" rx="7" ry="2" fill="#3b82f6" opacity="0.85"></ellipse>
+            <ellipse class="prop" cx="18" cy="0" rx="7" ry="2" fill="#3b82f6" opacity="0.85"></ellipse>
+            <ellipse class="prop" cx="0" cy="-14" rx="2" ry="7" fill="#3b82f6" opacity="0.85"></ellipse>
+            <ellipse class="prop" cx="0" cy="14" rx="2" ry="7" fill="#3b82f6" opacity="0.85"></ellipse>
+            <rect x="-4" y="-4" width="8" height="8" rx="1.5" fill="#1e3a8a"></rect>
+          </g>
+
+          <line x1="110" y1="60" x2="110" y2="80" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.5"></line>
+
+          <g class="lobster">
+            <path d="M 96 88 Q 78 60 70 65" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M 124 88 Q 142 60 150 65" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></path>
+            <circle cx="70" cy="65" r="2" fill="#1e3a8a"></circle>
+            <circle cx="150" cy="65" r="2" fill="#1e3a8a"></circle>
+
+            <path d="M 96 105 Q 70 100 50 95" stroke="#1e3a8a" stroke-width="3" fill="none" stroke-linecap="round"></path>
+            <path d="M 124 105 Q 150 100 170 95" stroke="#1e3a8a" stroke-width="3" fill="none" stroke-linecap="round"></path>
+
+            <ellipse cx="42" cy="92" rx="18" ry="13" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2.5"></ellipse>
+            <path d="M 32 84 Q 26 88 30 96" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M 32 100 Q 26 96 30 88" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></path>
+
+            <ellipse cx="178" cy="92" rx="18" ry="13" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2.5"></ellipse>
+            <path d="M 188 84 Q 194 88 190 96" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M 188 100 Q 194 96 190 88" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></path>
+
+            <ellipse cx="110" cy="105" rx="22" ry="26" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2.5"></ellipse>
+            <ellipse cx="102" cy="96" rx="6" ry="9" fill="#60a5fa" opacity="0.6"></ellipse>
+
+            <circle cx="102" cy="92" r="3" fill="#0c1e4a"></circle>
+            <circle cx="118" cy="92" r="3" fill="#0c1e4a"></circle>
+            <circle cx="103" cy="91" r="1" fill="white"></circle>
+            <circle cx="119" cy="91" r="1" fill="white"></circle>
+
+            <line x1="92" y1="110" x2="78" y2="118" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></line>
+            <line x1="91" y1="118" x2="76" y2="128" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></line>
+            <line x1="91" y1="125" x2="78" y2="138" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></line>
+            <line x1="128" y1="110" x2="142" y2="118" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></line>
+            <line x1="129" y1="118" x2="144" y2="128" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></line>
+            <line x1="129" y1="125" x2="142" y2="138" stroke="#1e3a8a" stroke-width="2" stroke-linecap="round"></line>
+
+            <ellipse cx="110" cy="138" rx="20" ry="9" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2.5"></ellipse>
+            <ellipse cx="110" cy="154" rx="17" ry="8" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2.5"></ellipse>
+            <ellipse cx="110" cy="168" rx="13" ry="7" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2.5"></ellipse>
+
+            <path d="M 96 173 L 86 188 L 100 184 L 110 190 L 120 184 L 134 188 L 124 173 Z" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2.5" stroke-linejoin="round"></path>
+          </g>
+        </svg>
+      </div>
+
       <h1>Free Motion</h1>
-      <p>
-        <strong>OpenClaw flies drones.</strong> OpenClaw sends commands through Telegram to a
-        Raspberry Pi. The Pi runs two models — vision and mission control — and the drone flies.
-        Open source.
-      </p>
-      <p>
-        <a class="cta" href="https://github.com/SpencerBrown1717/Free_Motion">View on GitHub</a>
-      </p>
-      <ul>
-        <li>
-          <a href="https://spencerbrown1717.github.io/Free_Motion/">GitHub Pages</a> — this
-          landing page
-        </li>
-        <li><a href="https://www.freemotion.tech/">freemotion.tech</a> — product site &amp; guides</li>
-        <li><a href="./README.md">README</a> — repo overview</li>
+      <p class="tagline">Let your lobster fly drones.</p>
+      <p class="blurb">Telegram in. Quadcopter out. Open source. A lightweight motion layer for drones, robots, and Raspberry Pi builds.</p>
+
+      <div class="ctas">
+        <a href="https://github.com/YOUR_USERNAME/free-motion" class="btn" target="_blank" rel="noopener noreferrer" aria-label="Open GitHub repository">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+          </svg>
+          View on GitHub
+        </a>
+        <a href="#how" class="btn ghost">How it works</a>
+      </div>
+
+      <p class="micro-note">Single file. No build step. Ready for liftoff</p>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <p class="section-label">How it works</p>
+      <div class="flow" aria-label="Three step flow">
+        <div class="flow-step">
+          <div class="icon" aria-hidden="true">📱</div>
+          <b>You text Telegram</b>
+          <span>“scout the field”</span>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="flow-step">
+          <div class="icon" aria-hidden="true">🦞</div>
+          <b>Pi runs 2 models</b>
+          <span>plans + sees</span>
+        </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="flow-step">
+          <div class="icon" aria-hidden="true">🚁</div>
+          <b>Drone flies</b>
+          <span>and reports back</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="inside">
+    <div class="wrap">
+      <p class="section-label">What’s inside</p>
+      <ul class="parts">
+        <li><span class="num">01</span><b>Mission Control</b><span>plans the mission and decides what to do next</span></li>
+        <li><span class="num">02</span><b>Visual Model</b><span>watches the camera feed and describes what it sees</span></li>
+        <li><span class="num">03</span><b>Telegram Bot</b><span>your remote, simple enough to use from any phone</span></li>
+        <li><span class="num">04</span><b>Raspberry Pi</b><span>runs the on board logic locally for lower latency</span></li>
+        <li><span class="num">05</span><b>Your Drone</b><span>any flight stack that can receive motion commands</span></li>
       </ul>
-    </main>
-    <footer>
-      <a href="https://github.com/SpencerBrown1717/Free_Motion">GitHub repository</a> · MIT
-      licensed · OpenClaw, Telegram, Raspberry Pi, vision &amp; mission control
-    </footer>
-  </body>
+    </div>
+  </section>
+
+  <section id="openclaw">
+    <div class="wrap">
+      <p class="section-label">Sister project</p>
+      <div class="sister">
+        <p>Built on <b>OpenClaw</b>. The lobster flies now. 🦞✈️</p>
+        <a href="https://openclaw.ai/" target="_blank" rel="noopener noreferrer">openclaw.ai →</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    MIT · 2026 · Made by humans &amp; one blue lobster · <a href="https://github.com/YOUR_USERNAME/free-motion" target="_blank" rel="noopener noreferrer">github</a>
+  </div>
+</footer>
+</body>
 </html>
