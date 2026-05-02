@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Free Motion</title>
+    <meta
+      name="description"
+      content="Free Motion — Telegram to drone missions. Open source."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: CanvasText;
+        --muted: color-mix(in oklab, CanvasText 72%, Canvas);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.55;
+        color: var(--fg);
+        background: Canvas;
+      }
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.25rem;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem clamp(1.25rem, 4vw, 2rem);
+        border-bottom: 1px solid color-mix(in oklab, CanvasText 14%, Canvas);
+      }
+      nav div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.25rem;
+        align-items: center;
+      }
+      nav strong {
+        font-size: 1rem;
+      }
+      main {
+        flex: 1;
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: clamp(1.5rem, 5vw, 3rem) 1.25rem;
+      }
+      h1 {
+        font-weight: 700;
+        font-size: clamp(1.75rem, 5vw, 2.25rem);
+        letter-spacing: -0.02em;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        margin: 0 0 1rem;
+        color: var(--muted);
+      }
+      ul {
+        margin: 1rem 0 0;
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.35rem 0;
+      }
+      a {
+        color: LinkText;
+      }
+      a:visited {
+        color: VisitedText;
+      }
+      .cta {
+        display: inline-block;
+        margin: 1.25rem 0 0;
+        padding: 0.65rem 1.1rem;
+        font-weight: 600;
+        text-decoration: none;
+        border-radius: 0.375rem;
+        border: 1px solid color-mix(in oklab, CanvasText 22%, Canvas);
+        background: color-mix(in oklab, CanvasText 8%, Canvas);
+      }
+      .cta:hover {
+        background: color-mix(in oklab, CanvasText 12%, Canvas);
+      }
+      footer {
+        padding: 1.25rem clamp(1.25rem, 4vw, 2rem);
+        border-top: 1px solid color-mix(in oklab, CanvasText 14%, Canvas);
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      footer a {
+        color: LinkText;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <strong>Free Motion</strong>
+      <div>
+        <a href="https://spencerbrown1717.github.io/Free_Motion/">Live site</a>
+        <a href="https://github.com/SpencerBrown1717/Free_Motion">GitHub</a>
+        <a href="https://www.freemotion.tech/">freemotion.tech</a>
+      </div>
+    </nav>
+    <main>
+      <h1>Free Motion</h1>
+      <p>
+        Open-source brain that turns a Telegram message into a drone mission — local inference,
+        MAVLink, vision, Raspberry Pi docs.
+      </p>
+      <p>
+        <a class="cta" href="https://github.com/SpencerBrown1717/Free_Motion">View on GitHub</a>
+      </p>
+      <ul>
+        <li>
+          <a href="https://spencerbrown1717.github.io/Free_Motion/">GitHub Pages</a> — this
+          landing page
+        </li>
+        <li><a href="https://www.freemotion.tech/">freemotion.tech</a> — product site &amp; guides</li>
+        <li><a href="./README.md">README</a> — repo overview</li>
+      </ul>
+    </main>
+    <footer>
+      <a href="https://github.com/SpencerBrown1717/Free_Motion">GitHub repository</a> · MIT
+      licensed · Open source AI motion layer
+    </footer>
+  </body>
+</html>
