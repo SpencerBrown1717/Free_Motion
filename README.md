@@ -4,8 +4,10 @@
 
 OpenClaw sends messages through **Telegram** to a **Raspberry Pi**. The Pi runs **two models** on board — **one vision**, **one mission control** — and the **drone flies**.
 
-## Live site
-[Free Motion website](https://spencerbrown1717.github.io/Free_Motion/)
+## Website
+**Product site:** [freemotion.tech](https://www.freemotion.tech/)
+
+**Repo (source + Issues):** [github.com/SpencerBrown1717/Free_Motion](https://github.com/SpencerBrown1717/Free_Motion) · minimal [GitHub Pages](https://spencerbrown1717.github.io/Free_Motion/) splash from this repo
 
 ## What it does
 - Telegram as the pipe from OpenClaw to the Pi
