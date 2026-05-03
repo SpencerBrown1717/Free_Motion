@@ -28,6 +28,7 @@ jobs:
           PYTHONPATH=examples/pi_bench_demo python -c "import pi_bench_demo; print('pi_bench_demo ok')"
           python -c "from freemotion.hardware.pi import PiHardwareController; print('PiHardwareController ok')"
           python -c "from freemotion.vision import YoloVision, make_vision_from_config; print('YoloVision lazy import ok')"
+          python -c "from freemotion.mission_control import GemmaMissionControl, make_mission_from_config; print('GemmaMissionControl lazy import ok')"
 
       - name: tests
         run: pytest -q tests

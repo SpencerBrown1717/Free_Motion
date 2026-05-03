@@ -164,3 +164,30 @@ def test_from_env_unknown_vision_backend_falls_back_with_warning(caplog) -> None
         )
     assert cfg.vision_backend == "mock"
     assert any("midjourney" in rec.message for rec in caplog.records)
+
+
+def test_from_env_default_mission_backend_is_mock() -> None:
+    cfg = Config.from_env(env={"TELEGRAM_BOT_TOKEN": "abc"})
+    assert cfg.mission_backend == "mock"
+
+
+def test_from_env_parses_mission_backend_gemma() -> None:
+    cfg = Config.from_env(
+        env={
+            "TELEGRAM_BOT_TOKEN": "abc",
+            "FREEMOTION_MISSION_BACKEND": "GEMMA",
+        }
+    )
+    assert cfg.mission_backend == "gemma"
+
+
+def test_from_env_unknown_mission_backend_falls_back_with_warning(caplog) -> None:
+    with caplog.at_level("WARNING", logger="freemotion.config"):
+        cfg = Config.from_env(
+            env={
+                "TELEGRAM_BOT_TOKEN": "abc",
+                "FREEMOTION_MISSION_BACKEND": "gpt5",
+            }
+        )
+    assert cfg.mission_backend == "mock"
+    assert any("gpt5" in rec.message for rec in caplog.records)

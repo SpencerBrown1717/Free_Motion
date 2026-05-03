@@ -6,7 +6,7 @@ OpenClaw sends a command. The device sees, decides, and moves on its own.
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/SpencerBrown1717/Free_Motion/actions/workflows/ci.yml/badge.svg)](https://github.com/SpencerBrown1717/Free_Motion/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-238%20passing-brightgreen.svg)](tests/)
 
 **Site:** [freemotion.tech](https://www.freemotion.tech/) · **Splash:** [spencerbrown1717.github.io/Free_Motion](https://spencerbrown1717.github.io/Free_Motion/) · **Roadmap:** [ROADMAP.md](ROADMAP.md)
 
@@ -50,7 +50,7 @@ You'll see five ticks of `intent → vision → mission_control → protocol →
 | Transport | Telegram | (more transports later) |
 | Protocol | v0 (typed envelopes) | stable contract — see [`docs/protocol.md`](docs/protocol.md) |
 | Vision | `MockVision` **or** `YoloVision` (post-M4, behind `[yolo]`) | [`VisionBackend`](freemotion/vision/interface.py) |
-| Mission control | `MockMissionControl` (real: Gemma small, planned) | [`MissionPolicy`](freemotion/mission_control/interface.py) |
+| Mission control | `MockMissionControl` **or** `GemmaMissionControl` (post-M4, behind `[gemma]`) | [`MissionPolicy`](freemotion/mission_control/interface.py) |
 | World state | `WorldStateSnapshot` + `WorldState` (lock-protected) | [`freemotion.world`](freemotion/world/state.py) |
 | Hardware | `MockHardwareController` **and** `PiHardwareController` (M4) | [`HardwareController`](freemotion/hardware/interface.py) |
 | Safety | `SafetyGate` (M4) — device default is the floor; `dry_run` blocks `arm`/`move`; `stop` always passes | [`SafetyGate`](freemotion/hardware/safety.py), [ADR-0006](docs/decisions.md#adr-0006--safetygate-enforce-safetymode-at-the-hardware-boundary-dry_run-is-the-floor--2026-05-03) |
@@ -60,11 +60,11 @@ Every layer is a `Protocol` you can implement. See [`docs/models.md`](docs/model
 
 ## Current status
 
-- **Shipped:** Telegram transport (M0); protocol v0 (M1); device runtime — config + router + agent (M2); mock hardware (M2); per-command deny list (M2); vision and mission interfaces + mocks (M3 partial); world state (M3); end-to-end loop demo (M3); Pi hardware controller, bench demo, and SafetyGate (M4); **`YoloVision` real perception adapter (post-M4)**.
-- **Mocked, not yet real:** Gemma small mission policy, higher autonomy (multi-step plans).
+- **Shipped:** Telegram transport (M0); protocol v0 (M1); device runtime — config + router + agent (M2); mock hardware (M2); per-command deny list (M2); vision and mission interfaces + mocks (M3 partial); world state (M3); end-to-end loop demo (M3); Pi hardware controller, bench demo, and SafetyGate (M4); `YoloVision` real perception adapter (post-M4); **`GemmaMissionControl` real decision adapter (post-M4)**.
+- **Mocked / not yet real:** higher autonomy (multi-step plans, agent loops, tool use). Out of scope by design — the v1 decision contract is one structured `MissionDecision` per call.
 - **Not started:** Jetson / ESP32 / Arduino support (M5).
 
-201 tests passing on every push (plus 1 skip when the optional `[yolo]` extra isn't installed): 22 cover the Pi controller (via `FakeGPIO`), 14 cover the safety gate, 24 cover `YoloVision` (via an injected `yolo_factory` fake — CI runs without `ultralytics` or `torch`). The full state of play is in [`ROADMAP.md`](ROADMAP.md).
+238 tests passing on every push (plus 1 skip when the optional `[yolo]` extra isn't installed): 22 cover the Pi controller (via `FakeGPIO`), 14 cover the safety gate, 24 cover `YoloVision` (via an injected `yolo_factory` fake), 37 cover `GemmaMissionControl` (via an injected `gemma_factory` fake — CI runs without `transformers` or `torch`). The full state of play is in [`ROADMAP.md`](ROADMAP.md).
 
 ## Repository tour
 
@@ -118,8 +118,8 @@ Non-goals for v0.x:
 The repo crosses the threshold where a stranger can usefully contribute. Three quick paths:
 
 1. **Run [`examples/local_sim_demo.py`](examples/local_sim_demo.py)** and read the code. Open a PR for any rough edge.
-2. **Land a real adapter.** Top of the post-M4 list: `YoloVision` (`VisionBackend`) and `GemmaMissionControl` (`MissionPolicy`). Interfaces are frozen in `freemotion/vision/` and `freemotion/mission_control/`; mocks are the structural reference. See [`docs/models.md`](docs/models.md) for the swap path.
-3. **Implement a hardware adapter.** `PiHardwareController` is the M4 reference. Jetson, ESP32, Arduino are open against the same `HardwareController` Protocol. See [`docs/pi-hardware.md`](docs/pi-hardware.md) for the bench-rig contract.
+2. **Implement a hardware adapter.** `PiHardwareController` is the M4 reference. Jetson, ESP32, Arduino are open against the same `HardwareController` Protocol. See [`docs/pi-hardware.md`](docs/pi-hardware.md) for the bench-rig contract.
+3. **Add a second real adapter at the model layer.** `YoloVision` and `GemmaMissionControl` are both shipped (post-M4); a second `VisionBackend` (e.g. ONNX-Runtime for embedded) or `MissionPolicy` (e.g. llama.cpp / hosted endpoint) tests how well the v1 interfaces survive a different shape. See [`docs/models.md`](docs/models.md) for the swap path and [ADR-0007](docs/decisions.md) / [ADR-0008](docs/decisions.md) for the v1 design choices each is built against.
 
 Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md). Architectural decisions live in [`docs/decisions.md`](docs/decisions.md).
 

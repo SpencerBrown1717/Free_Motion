@@ -4,6 +4,31 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added (post-M4 — `GemmaMissionControl`, first real decision adapter)
+
+- **`GemmaMissionControl`** (`freemotion/mission_control/gemma.py`) — `MissionPolicy` backed by an instruction-tuned Gemma model served through `transformers`. v1 scope per ADR-0008:
+  - One inference per `plan()` call, returning a single `MissionDecision`. No multi-step plans, agent loops, or tool use — the v1 contract from ADR-0003 is preserved verbatim.
+  - Output is parsed from a tolerant JSON-extraction step: find the first balanced `{...}` block, `json.loads` it, normalize unknown commands to `None`, default missing fields, clamp `confidence` to `[0, 1]`. Anything unparseable collapses to an idle decision with a clear reason; nothing crashes upstream.
+  - **Lazy `transformers` import** inside `__init__`; module imports cleanly on a host without `[gemma]` installed. Construction failures (transformers absent, model load raises) flip the adapter offline (`available is False`); `plan()` returns idle decisions with the failure reason. Inference exceptions (`client.generate(...)` raising) are caught the same way.
+  - Default model is `google/gemma-2-2b-it`; defaults `max_new_tokens=128`, `temperature=0.1`. Override on the constructor.
+  - `_LLMClient` seam is a one-method duck type (`generate(prompt: str) -> str`); the default implementation wraps `transformers` with the Gemma chat template applied when the tokenizer ships one. Tests inject a `_FakeLLM`.
+  - `build_prompt` and `parse_decision` are free functions, importable and unit-testable in isolation.
+  - `next_command` resolves against `CommandName`'s wire values; new protocol commands automatically become available to the policy without code changes here. When `next_command=None`, `args` is wiped — args attached to a rejected action would mislead downstream.
+- **Factory** — `make_mission_from_config(config)` returns `GemmaMissionControl()` for `FREEMOTION_MISSION_BACKEND=gemma`, `MockMissionControl()` everywhere else. Unknown values warn and fall back to mock.
+- **Config** — new `mission_backend: str` field (default `"mock"`), parsed from `FREEMOTION_MISSION_BACKEND`. Only `mock` and `gemma` are valid in v1; unknowns warn and fall back. 3 new config tests.
+- **`pyproject.toml`** — new `[gemma]` extra (`transformers>=4.40,<5`, `torch>=2`). Base install stays stdlib + `python-telegram-bot`.
+- **CI** — import smoke now also covers `from freemotion.mission_control import GemmaMissionControl, make_mission_from_config` to confirm the lazy-import discipline holds on a runner without `[gemma]`.
+- **Docs** — `docs/decisions.md` ADR-0008 locks the v1 design (transformers-backed, single decision, tolerant JSON parser, fail-offline, no real-dep smoke test, factory mirrors the YOLO precedent). `docs/models.md` flips the Mission Control section from "planned" to "shipped" with install/wire/factory examples and a mock-vs-Gemma comparison table.
+- **No real-dep smoke test.** `transformers` is heavy enough that some installs hang or SIGFPE on `import transformers` in ways that even subprocess-isolated probes can't escape — the child can wedge in uninterruptible kernel state. The 37 structural tests in `tests/test_mission_gemma.py` cover the entire contract via injected fakes; CI's import-smoke step still imports the `freemotion.mission_control` module to confirm the lazy-import path stays clean. ADR-0008 records the rationale.
+
+**238 tests pass on every push** (+1 skip when `[yolo]` isn't installed). Test breakdown for the new code: 37 in `tests/test_mission_gemma.py`, +3 in `tests/test_config.py`.
+
+Next, in priority order:
+
+- **Jetson Nano** (M5). Same `HardwareController` Protocol; new adapter class + example. Unlocks heavier on-device vision.
+- **ESP32 / Arduino** (M5). Bridge / coprocessor patterns.
+- **Rate limits, watchdogs, link-loss fail-safe** (Safety, post-M4 continued).
+
 ### Added (post-M4 — `YoloVision`, first real perception adapter)
 
 - **`YoloVision`** (`freemotion/vision/yolo.py`) — `VisionBackend` backed by `ultralytics` YOLO. v1 scope per ADR-0007:

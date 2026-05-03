@@ -22,6 +22,10 @@ dev = [
 yolo = [
   "ultralytics>=8.0,<9",
 ]
+gemma = [
+  "transformers>=4.40,<5",
+  "torch>=2",
+]
 
 [project.urls]
 Homepage = "https://www.freemotion.tech/"

@@ -57,6 +57,7 @@ def _parse_optional_pin(raw: str, var_name: str) -> Optional[int]:
 
 
 _VALID_VISION_BACKENDS = frozenset({"mock", "yolo"})
+_VALID_MISSION_BACKENDS = frozenset({"mock", "gemma"})
 
 
 def _parse_vision_backend(raw: str) -> str:
@@ -72,6 +73,24 @@ def _parse_vision_backend(raw: str) -> str:
             "Valid values: %s",
             value,
             sorted(_VALID_VISION_BACKENDS),
+        )
+        return "mock"
+    return value
+
+
+def _parse_mission_backend(raw: str) -> str:
+    """Parse `FREEMOTION_MISSION_BACKEND`. Default and unknown both
+    fall back to `"mock"`; unknown logs a warning. The backend is
+    wired by `freemotion.mission_control.make_mission_from_config`."""
+    value = (raw or "").strip().lower()
+    if not value:
+        return "mock"
+    if value not in _VALID_MISSION_BACKENDS:
+        LOG.warning(
+            "unknown FREEMOTION_MISSION_BACKEND=%r; falling back to 'mock'. "
+            "Valid values: %s",
+            value,
+            sorted(_VALID_MISSION_BACKENDS),
         )
         return "mock"
     return value
@@ -96,6 +115,7 @@ class Config:
     pi_armed_pin: Optional[int] = None
     pi_moving_pin: Optional[int] = None
     vision_backend: str = "mock"
+    mission_backend: str = "mock"
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "Config":
@@ -142,6 +162,10 @@ class Config:
             e.get("FREEMOTION_VISION_BACKEND", "")
         )
 
+        mission_backend = _parse_mission_backend(
+            e.get("FREEMOTION_MISSION_BACKEND", "")
+        )
+
         enabled = _parse_features(e.get("FREEMOTION_FEATURES", ""))
 
         denied = _parse_denied_commands(e.get("FREEMOTION_DENIED_COMMANDS", ""))
@@ -164,4 +188,5 @@ class Config:
             pi_armed_pin=pi_armed_pin,
             pi_moving_pin=pi_moving_pin,
             vision_backend=vision_backend,
+            mission_backend=mission_backend,
         )

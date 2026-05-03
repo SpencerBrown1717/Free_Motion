@@ -37,7 +37,7 @@ The project is framed around six modules. Each milestone below lights one or mor
 | **Transport** | Move bytes between OpenClaw and the device. Telegram first; pluggable later. (shipped, M0) |
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
 | **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2) |
-| **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3 partial); Gemma small adapter pending. |
+| **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3); `GemmaMissionControl` shipped post-M4 behind `[gemma]` extra and `FREEMOTION_MISSION_BACKEND=gemma`. |
 | **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` (M3) + `YoloVision` (post-M4, behind `[yolo]` extra and `FREEMOTION_VISION_BACKEND=yolo`). |
 | **World state** | Shared "what's true now" — `WorldStateSnapshot` + `WorldState` (M3, shipped). |
 | **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` (M2) + `PiHardwareController` + `make_controller_from_config` factory shipped (M4). Jetson / ESP32 / Arduino on the M5 roadmap. |
@@ -119,10 +119,10 @@ What's now in the repo:
 7. **Shared world state** — `freemotion/world/` with `WorldStateSnapshot` (immutable read view) and `WorldState` (lock-protected wrapper). Five fields: `target`, `current_state`, `confidence`, `last_seen`, `next_action`. `MissionPolicy.plan` now takes `WorldStateSnapshot` directly. See [ADR-0005](docs/decisions.md#adr-0005--world-state-v1-narrow-lock-protected-snapshot-shaped--2026-05-03).
 8. **End-to-end loop demo** — [`examples/local_sim_demo.py`](examples/local_sim_demo.py) closes the M3 loop on mocks: intent → vision → world → mission_control → router → hardware → world. No setup, no hardware, no Telegram, no model download. Runs in CI as a smoke test. Long-form walkthrough in [`docs/demo.md`](docs/demo.md).
 
-Still to do under M3 (tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md)):
+Real adapters for both interfaces shipped post-M4:
 
-- **`YoloVision` adapter** behind `FREEMOTION_VISION_BACKEND=yolo` and a `pip install -e .[yolo]` extra.
-- **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra.
+- **`YoloVision`** behind `FREEMOTION_VISION_BACKEND=yolo` and `pip install -e .[yolo]`. See ADR-0007.
+- **`GemmaMissionControl`** behind `FREEMOTION_MISSION_BACKEND=gemma` and `pip install -e .[gemma]`. See ADR-0008.
 
 ### M4 — First real hardware proof (shipped)
 
@@ -187,10 +187,10 @@ Past work (shipped):
 Past work (shipped, post-M4):
 
 9. ~~`YoloVision` adapter behind `FREEMOTION_VISION_BACKEND=yolo` and `pip install -e .[yolo]`.~~ See ADR-0007 in [`docs/decisions.md`](docs/decisions.md).
+10. ~~`GemmaMissionControl` adapter behind `FREEMOTION_MISSION_BACKEND=gemma` and `pip install -e .[gemma]`.~~ See ADR-0008 in [`docs/decisions.md`](docs/decisions.md).
 
 Next, in priority order:
 
-10. **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra. Same `MissionPolicy` Protocol; `MockMissionControl` is the structural reference.
 11. **Jetson Nano port** (M5). Same `HardwareController` Protocol; new adapter class + example. Heavier on-device vision unlocks once it's there.
 12. **ESP32 / Arduino bridges** (M5).
 13. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.

@@ -1,6 +1,6 @@
 # Models
 
-Where YOLO and Gemma small plug in. The interfaces and mock adapters ship now; the real model adapters land behind feature flags later.
+Where YOLO and Gemma small plug in. Interfaces and mock adapters ship as defaults; real model adapters live behind feature flags and optional install extras.
 
 ## Why interfaces first
 
@@ -11,7 +11,7 @@ Model dependencies are heavy. Pulling YOLO or Gemma into the runtime as a hard r
 - The runtime is held hostage to upstream model releases.
 - Every change to vision or mission code risks bricking the rest of the system.
 
-So we land **architecture now, dependency later**. This file is the contract real adapters will conform to. ADR-0003 in [`decisions.md`](decisions.md) records the call.
+So we land **architecture now, dependency optional**. This file is the contract real adapters conform to. ADR-0003 in [`decisions.md`](decisions.md) records the call. ADR-0007 (`YoloVision`) and ADR-0008 (`GemmaMissionControl`) lock the v1 shapes.
 
 ## Vision
 
@@ -144,17 +144,62 @@ Rule-based, deterministic. Recognizes:
 
 This is **the structural pattern Gemma will follow**, not a permanent home for the logic.
 
-### Real (planned)
+### Real — `GemmaMissionControl` (shipped, post-M4)
 
-`freemotion/mission_control/gemma.py` will wrap `transformers` or `llama.cpp` with the same `MissionPolicy` interface. v1 scope:
+`freemotion/mission_control/gemma.py` wraps a Hugging Face `transformers`-served Gemma instruction-tuned model with the same `MissionPolicy` interface. v1 scope, locked by [ADR-0008](decisions.md#adr-0008--gemmamissioncontrol-v1-transformers-backed-single-decision-tolerant-json-parser-fail-offline--2026-05-03):
 
-- Parse high-level intent.
-- Suggest the next concrete action (one `CommandName` + args).
-- Return a short structured decision with a reason and a confidence.
+- **One inference per `plan()` call.** No multi-step plans, no agent loops, no tool calls. The output is a single `MissionDecision`.
+- **Structured output.** The LLM is asked to reply with a small JSON object: `{next_command, args, reason, confidence}`. We extract the first balanced `{...}` block from the response, parse it, normalize unknown commands to `None`, default missing fields, and clamp `confidence` to `[0, 1]`. Anything we can't normalize collapses to an idle decision instead of raising.
+- **Lazy `transformers` import.** Module imports cleanly on a host without `[gemma]` installed; if the import or model load fails, the adapter stays offline (`available is False`) and `plan()` returns idle decisions with a clear reason.
+- **Fail-offline on inference errors.** `client.generate()` raising (CUDA OOM, model unloaded, etc.) is caught; the agent loop never sees a Gemma-induced exception.
+- **Default model is `google/gemma-2-2b-it`.** Smallest instruction-tuned Gemma 2 — the most plausible candidate for CPU-bound or modest-GPU hosts. Override via the `model=` constructor arg.
+- **`_LLMClient` seam is a one-method duck type:** anything with `generate(prompt: str) -> str` is a valid client. Tests inject a fake; the default implementation wraps `transformers` (tokenizer + `AutoModelForCausalLM`, with the Gemma chat template applied when the tokenizer ships one).
 
-Not free-form robotics. Same shape as the mock, with a bigger brain.
+Install and turn it on:
 
-Construction is gated on `FREEMOTION_MISSION_BACKEND=gemma` (flag also lands with the adapter).
+```bash
+pip install -e .[gemma]
+export FREEMOTION_MISSION_BACKEND=gemma
+```
+
+Wire by hand for any non-default knob:
+
+```python
+from freemotion.mission_control import GemmaMissionControl
+
+policy = GemmaMissionControl(
+    model="google/gemma-2-2b-it",
+    max_new_tokens=128,
+    temperature=0.1,
+)
+
+decision = policy.plan(intent="follow person", scene=scene, world=world)
+if decision.next_command is not None:
+    router.dispatch(...)
+```
+
+Or via the factory (uses the constructor's defaults):
+
+```python
+from freemotion.config import Config
+from freemotion.mission_control import make_mission_from_config
+
+policy = make_mission_from_config(Config.from_env())  # GemmaMissionControl when FREEMOTION_MISSION_BACKEND=gemma
+```
+
+Tests in [`tests/test_mission_gemma.py`](../tests/test_mission_gemma.py) (37 tests) cover the adapter through an injected `gemma_factory` so CI runs cleanly without `transformers`. There is no real-dep smoke test — `transformers` is heavy enough that some installs hang or SIGFPE on import in ways that even subprocess-isolated probes can't escape; the structural tests cover the entire contract.
+
+Differences vs. the mock at a glance:
+
+| Aspect | `MockMissionControl` | `GemmaMissionControl` |
+|---|---|---|
+| Inputs | intent + scene + world | same |
+| Output | `MissionDecision` | same |
+| Decision logic | hard-coded rules (stop / disarm / follow / idle) | LLM inference + JSON parsing |
+| Determinism | totally deterministic | sampling-influenced (set `temperature=0.0` for greedy) |
+| Failure mode | always `available`; idle on unknown intent | offline if model load fails; idle on parse / inference failure |
+| Install cost | zero | `pip install -e .[gemma]` (transformers + torch) |
+| When to use | tests, CI, local sim, default device boot | a host that has explicitly opted into the heavy stack |
 
 ## How they compose
 
