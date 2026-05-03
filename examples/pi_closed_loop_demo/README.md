@@ -27,7 +27,7 @@ This demo is **bench-safe by design** — same as `pi_bench_demo`. The only moti
 |---|---|
 | `/ping` | round-trip liveness check |
 | `/capabilities` | the device's full command set |
-| `/status` | host info, safety mode, controller telemetry, **mission_loop telemetry** (running, intent, tick_count, last_decision, failure counters) |
+| `/status` | host info, safety mode, controller telemetry, **mission_loop telemetry** (running, intent, tick_count, last_decision, failure counters, **`degraded` flag with reason, `world_stale` + `world_age_s`** — Step 3) |
 | `/arm` | drives `armed_pin` HIGH; controller marks itself armed (refused in `dry_run`) |
 | `/move x y z` | one-shot operator move; pulses `moving_pin`; refused if not armed |
 | `/disarm` | drives `armed_pin` LOW; controller marks itself idle |
@@ -150,14 +150,21 @@ If `vision.available` was False at startup, the demo refused to launch (exit cod
 
 ## Failure modes (graceful)
 
+> **Step 3.** This table is the structural summary. The full operator-facing reference for *environmental* failures (camera unplugged mid-mission, Gemma hangs, SIGTERM, restart-after-stop) plus a one-page runbook lives in [docs/pi-failure-modes.md](../../docs/pi-failure-modes.md).
+
 | Failure | What you see |
 |---|---|
 | Camera dropped a frame | log: `mission_loop: vision.scene() raised: ...`; `vision_failures` ticks up; loop continues. |
+| Camera unplugged mid-mission | `consecutive_vision_failures` climbs; after 5 in a row `mission: ... [DEGRADED: vision_failures>=5 (N)]`; `world_age_s` grows past 5s and `world_stale=True`; MOVE dispatches are skipped (`stale_world_skips` ticks up); loop continues. `/stop` to end. |
 | YOLO inference error | same; YoloVision swallows internally and returns no detections; loop continues. |
-| Gemma OOM / inference error | log: `mission.plan() raised: ...`; `mission_failures` ticks up; idle decision; no MOVE dispatched. |
+| Gemma OOM / inference error | log: `mission.plan() raised: ...`; `mission_failures` ticks up; idle decision; no MOVE dispatched. After 5 in a row, `[DEGRADED: mission_failures>=5 (N)]`. |
+| Gemma hangs in `transformers.generate(...)` | `/stop` returns within ~`join_timeout_s`; pins drop LOW immediately; `/status` reads `mission: idle`. A subsequent `/mission_start` refuses until the worker exits naturally. Restart the service if you need faster recovery. |
+| Repeated dispatch refusal (e.g. not armed, or `denied_commands=move`) | `consecutive_dispatch_failures` climbs; after 5 in a row `[DEGRADED: dispatch_failures>=5 (N)]`. One successful dispatch (e.g. after `/arm`) clears it automatically. |
+| Empty room (no detections for >5s) | `[stale world: 8.3s]` in `/status`; MOVE skipped; resumes the moment a person walks into frame. Safe behavior, not a failure. |
 | `dry_run` mode | `mission_start` refused with `unsafe_in_mode`. Operator `/move` returns "would move". Mission loop never starts. |
 | `denied_commands=move` | router refuses every MOVE (operator and loop-dispatched). `last_dispatch_ok=false`, `dispatch_failures` ticks up. The loop keeps running so a future config change can re-enable it without a restart. |
 | LLM hallucinates `next_command=stop` (or arm/disarm) | log: `ignoring out-of-scope next_command='stop'`. The loop dispatches MOVE and only MOVE. |
+| SIGTERM (systemd stop) | `app.run_polling()` returns; `graceful_shutdown(...)` runs `loop.stop` → `controller.stop` → `cam.close` → `inner.cleanup` in order. Pins LOW. Service stays down until `systemctl --user start` (no auto-restart on clean exit). |
 
 ## How this compares to the older demos
 
@@ -178,4 +185,5 @@ This demo is the canonical reference for what a Free Motion device looks like en
 - [docs/pi-hardware.md](../../docs/pi-hardware.md) — `PiHardwareController` + `SafetyGate`.
 - [docs/pi-camera.md](../../docs/pi-camera.md) — `PiCameraSource` setup.
 - [docs/pi-closed-loop.md](../../docs/pi-closed-loop.md) — canonical closed-loop architecture, env vars, failure model.
-- [docs/decisions.md](../../docs/decisions.md) — ADR-0010 (`MissionLoop`), ADR-0009 (camera), ADR-0008 (Gemma), ADR-0007 (YOLO), ADR-0006 (SafetyGate).
+- [docs/pi-failure-modes.md](../../docs/pi-failure-modes.md) — Step 3 environmental failure reference + one-page operator runbook.
+- [docs/decisions.md](../../docs/decisions.md) — ADR-0011 (Step 3 hardening), ADR-0010 (`MissionLoop`), ADR-0009 (camera), ADR-0008 (Gemma), ADR-0007 (YOLO), ADR-0006 (SafetyGate).

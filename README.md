@@ -6,7 +6,7 @@ OpenClaw sends a command. The device sees, decides, and moves on its own.
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/SpencerBrown1717/Free_Motion/actions/workflows/ci.yml/badge.svg)](https://github.com/SpencerBrown1717/Free_Motion/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-309%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-340%20passing-brightgreen.svg)](tests/)
 
 **Site:** [freemotion.tech](https://www.freemotion.tech/) · **Splash:** [spencerbrown1717.github.io/Free_Motion](https://spencerbrown1717.github.io/Free_Motion/) · **Roadmap:** [ROADMAP.md](ROADMAP.md)
 
@@ -54,19 +54,19 @@ You'll see five ticks of `intent → vision → mission_control → protocol →
 | World state | `WorldStateSnapshot` + `WorldState` (lock-protected) | [`freemotion.world`](freemotion/world/state.py) |
 | Hardware | `MockHardwareController` **and** `PiHardwareController` (M4) | [`HardwareController`](freemotion/hardware/interface.py) |
 | Safety | `SafetyGate` (M4) — device default is the floor; `dry_run` blocks `arm`/`move`; `stop` always passes | [`SafetyGate`](freemotion/hardware/safety.py), [ADR-0006](docs/decisions.md#adr-0006--safetygate-enforce-safetymode-at-the-hardware-boundary-dry_run-is-the-floor--2026-05-03) |
-| Closed loop | `MissionLoop` (Step 2) — background `capture → infer → world → plan → MOVE` with fail-isolated stages | [`MissionLoop`](freemotion/agent/mission_loop.py), [ADR-0010](docs/decisions.md) |
+| Closed loop | `MissionLoop` (Step 2) + Step 3 hardening — background `capture → infer → world → plan → MOVE` with fail-isolated stages, stale-world refusal, per-stage degraded summary, hung-tick handling | [`MissionLoop`](freemotion/agent/mission_loop.py), [ADR-0010](docs/decisions.md), [ADR-0011](docs/decisions.md) |
 | Target device | Raspberry Pi (M4 shipped) | Jetson, ESP32, Arduino on the roadmap |
 
 Every layer is a `Protocol` you can implement. See [`docs/models.md`](docs/models.md) for the model swap path and [`docs/pi-hardware.md`](docs/pi-hardware.md) for the Pi adapter.
 
 ## Current status
 
-- **Shipped:** Telegram transport (M0); protocol v0 (M1); device runtime — config + router + agent (M2); mock hardware (M2); per-command deny list (M2); vision and mission interfaces + mocks (M3 partial); world state (M3); end-to-end loop demo (M3); Pi hardware controller, bench demo, and SafetyGate (M4); `YoloVision` real perception adapter (post-M4); `GemmaMissionControl` real decision adapter (post-M4); `PiCameraSource` live-camera adapter + `pi_camera_demo` (Step 1); **`MissionLoop` + `pi_closed_loop_demo` — full Pi closed loop, Telegram → live YOLO → world → Gemma → bench-safe MOVE → `/status`, with `/stop` halting the loop and dropping pins LOW unconditionally (Step 2 — full Pi closed loop)**.
-- **In progress (Pi-first lockdown, before Jetson):** Step 3 — real-world failure-mode hardening across the full Pi path. Step 4 — Pi reference architecture lock. Step 5 — one repeatable Pi benchmark demo.
+- **Shipped:** Telegram transport (M0); protocol v0 (M1); device runtime — config + router + agent (M2); mock hardware (M2); per-command deny list (M2); vision and mission interfaces + mocks (M3 partial); world state (M3); end-to-end loop demo (M3); Pi hardware controller, bench demo, and SafetyGate (M4); `YoloVision` real perception adapter (post-M4); `GemmaMissionControl` real decision adapter (post-M4); `PiCameraSource` live-camera adapter + `pi_camera_demo` (Step 1); `MissionLoop` + `pi_closed_loop_demo` — full Pi closed loop, Telegram → live YOLO → world → Gemma → bench-safe MOVE → `/status`, with `/stop` halting the loop and dropping pins LOW unconditionally (Step 2); **stale-world refusal, per-stage consecutive counters with `degraded` summary, hung-tick handling, and `graceful_shutdown` ordering — every environmental failure (camera unplugged, vision drop, Gemma hang, repeated dispatch fail, SIGTERM, restart) is contracted and tested (Step 3 — failure-mode hardening, [`docs/pi-failure-modes.md`](docs/pi-failure-modes.md))**.
+- **In progress (Pi-first lockdown, before Jetson):** Step 4 — Pi reference architecture lock. Step 5 — one repeatable Pi benchmark demo.
 - **Mocked / not yet real:** higher autonomy (multi-step plans, agent loops, tool use). Out of scope by design — the v1 decision contract is one structured `MissionDecision` per call.
-- **Not started:** Jetson / ESP32 / Arduino support (M5). Gated on Steps 1–5 above being complete.
+- **Not started:** Jetson / ESP32 / Arduino support (M5). Gated on Steps 4–5 above being complete.
 
-309 tests passing on every push (plus 2 skips when the optional `[yolo]` and `[picam]` extras aren't installed): 22 cover the Pi controller (via `FakeGPIO`), 14 cover the safety gate, 24 cover `YoloVision`, 37 cover `GemmaMissionControl`, 22 cover `PiCameraSource` + `pi_camera_demo`, **22 cover `MissionLoop` (lifecycle, scope filtering, every per-stage failure path), 14 cover `pi_closed_loop_demo` (router shape, master-kill `/stop`, mission_loop telemetry on `/status`, `dry_run` refusal)**, and the rest cover the protocol, router, config, and mocks. CI runs without `ultralytics`, `torch`, `transformers`, `picamera2`, or `RPi.GPIO`. The full state of play is in [`ROADMAP.md`](ROADMAP.md).
+340 tests passing on every push (plus 2 skips when the optional `[yolo]` and `[picam]` extras aren't installed): 22 cover the Pi controller (via `FakeGPIO`), 14 cover the safety gate, 24 cover `YoloVision`, 37 cover `GemmaMissionControl`, 22 cover `PiCameraSource` + `pi_camera_demo`, **39 cover `MissionLoop` (lifecycle, scope filtering, per-stage failure paths, stale-world skip + recovery, degraded transitions, hung-tick handling, dead-orphan reap on start)**, **21 cover `pi_closed_loop_demo` (router shape, master-kill `/stop`, mission_loop telemetry on `/status`, `dry_run` refusal, `graceful_shutdown` ordering and exception tolerance, degraded summary in `/status`)**, and the rest cover the protocol, router, config, and mocks. CI runs without `ultralytics`, `torch`, `transformers`, `picamera2`, or `RPi.GPIO`. The full state of play is in [`ROADMAP.md`](ROADMAP.md).
 
 ## Repository tour
 
@@ -96,6 +96,7 @@ docs/
 ├── models.md         # vision + mission control swap path
 ├── pi-camera.md      # PiCameraSource + USB webcam alternative (Step 1)
 ├── pi-closed-loop.md # canonical end-to-end Pi runtime (Step 2)
+├── pi-failure-modes.md # 10 environmental failures + runbook (Step 3)
 ├── pi-hardware.md    # Pi controller, safety gate, bench flow (M4)
 ├── pi-runtime.md     # how to write a device on the runtime
 ├── pi-setup.md       # how to prepare a Pi

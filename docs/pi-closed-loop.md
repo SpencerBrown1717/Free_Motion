@@ -130,6 +130,9 @@ The closed-loop runtime reads everything `pi_bench_demo` reads, plus:
 
 ## Failure model (graceful by design)
 
+> **Step 3 update.** The table below lists the *structural* failure modes covered by the closed-loop wiring. The full *environmental* failure-mode reference — what happens when the camera is unplugged mid-mission, when YOLO drops, when Gemma hangs, when SIGTERM hits — lives in [docs/pi-failure-modes.md](pi-failure-modes.md). Step 3 added stale-world refusal, per-stage consecutive counters with a `degraded` summary, hung-tick handling, and `graceful_shutdown` ordering on top of what's described here. See [ADR-0011](decisions.md).
+
+
 | Failure | What happens | What you see |
 |---|---|---|
 | `picamera2` not installed | source flips offline at `__init__`; demo refuses to start | exit code `2`, log: `PiCameraSource is offline.` |

@@ -394,3 +394,203 @@ def test_main_returns_3_when_vision_offline(monkeypatch) -> None:
     monkeypatch.setenv("FREEMOTION_HARDWARE", "host")
     rc = pi_closed_loop_demo.main()
     assert rc == 3
+
+
+# ----------------------------------------------------------------------
+# Step 3 — graceful_shutdown helper
+# ----------------------------------------------------------------------
+
+
+class _Trace:
+    """Records call order across the demo's teardown sequence."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def make(self, name: str, *, raises: bool = False):
+        def fn(*_a, **_kw) -> None:
+            self.calls.append(name)
+            if raises:
+                raise RuntimeError(f"{name} raised")
+
+        return fn
+
+
+class _StubLoop:
+    def __init__(self, trace: _Trace, *, raises: bool = False) -> None:
+        self._trace = trace
+        self._raises = raises
+
+    def stop(self) -> None:
+        self._trace.calls.append("loop")
+        if self._raises:
+            raise RuntimeError("loop.stop raised")
+
+
+class _StubController:
+    def __init__(self, trace: _Trace, *, raises: bool = False) -> None:
+        self._trace = trace
+        self._raises = raises
+
+    def stop(self) -> None:
+        self._trace.calls.append("controller")
+        if self._raises:
+            raise RuntimeError("controller.stop raised")
+
+
+class _StubCam:
+    def __init__(self, trace: _Trace, *, raises: bool = False) -> None:
+        self._trace = trace
+        self._raises = raises
+
+    def close(self) -> None:
+        self._trace.calls.append("cam")
+        if self._raises:
+            raise RuntimeError("cam.close raised")
+
+
+class _StubInner:
+    def __init__(self, trace: _Trace, *, has_cleanup: bool = True) -> None:
+        if has_cleanup:
+            self.cleanup = self._cleanup_impl
+        self._trace = trace
+
+    def _cleanup_impl(self) -> None:
+        self._trace.calls.append("inner_cleanup")
+
+
+def test_graceful_shutdown_runs_in_order() -> None:
+    """Loop FIRST, then controller, then cam, then inner.cleanup.
+
+    This order is the survivability contract from Step 3:
+    - loop.stop() before controller.stop() so no in-flight tick can
+      dispatch a fresh MOVE *after* the pins are dropped LOW.
+    - cam.close() after controller.stop() so a hung tick releasing
+      the camera does not race a /stop trying to drop the pins.
+    - inner_cleanup last, after everyone is done with GPIO.
+    """
+    trace = _Trace()
+    pi_closed_loop_demo.graceful_shutdown(
+        mission_loop=_StubLoop(trace),
+        controller=_StubController(trace),
+        cam=_StubCam(trace),
+        inner=_StubInner(trace),
+    )
+    assert trace.calls == ["loop", "controller", "cam", "inner_cleanup"]
+
+
+def test_graceful_shutdown_continues_when_loop_stop_raises() -> None:
+    """A broken layer cannot block the rest of the teardown."""
+    trace = _Trace()
+    pi_closed_loop_demo.graceful_shutdown(
+        mission_loop=_StubLoop(trace, raises=True),
+        controller=_StubController(trace),
+        cam=_StubCam(trace),
+        inner=_StubInner(trace),
+    )
+    assert trace.calls == ["loop", "controller", "cam", "inner_cleanup"]
+
+
+def test_graceful_shutdown_continues_when_controller_stop_raises() -> None:
+    trace = _Trace()
+    pi_closed_loop_demo.graceful_shutdown(
+        mission_loop=_StubLoop(trace),
+        controller=_StubController(trace, raises=True),
+        cam=_StubCam(trace),
+        inner=_StubInner(trace),
+    )
+    assert trace.calls == ["loop", "controller", "cam", "inner_cleanup"]
+
+
+def test_graceful_shutdown_continues_when_cam_close_raises() -> None:
+    trace = _Trace()
+    pi_closed_loop_demo.graceful_shutdown(
+        mission_loop=_StubLoop(trace),
+        controller=_StubController(trace),
+        cam=_StubCam(trace, raises=True),
+        inner=_StubInner(trace),
+    )
+    assert trace.calls == ["loop", "controller", "cam", "inner_cleanup"]
+
+
+def test_graceful_shutdown_works_when_inner_has_no_cleanup() -> None:
+    """`MockHardwareController` doesn't implement `cleanup()`. The
+    helper must stay polymorphic across mock and Pi controllers."""
+    trace = _Trace()
+    pi_closed_loop_demo.graceful_shutdown(
+        mission_loop=_StubLoop(trace),
+        controller=_StubController(trace),
+        cam=_StubCam(trace),
+        inner=_StubInner(trace, has_cleanup=False),
+    )
+    assert trace.calls == ["loop", "controller", "cam"]
+
+
+def test_graceful_shutdown_idempotent_against_double_invocation() -> None:
+    """SIGTERM after `/stop` already ran the teardown should be a no-op
+    on the second pass — by virtue of every underlying primitive being
+    idempotent. The helper itself doesn't dedup because each underlying
+    `stop`/`close`/`cleanup` is already idempotent in the v1 contract
+    (ADRs 0006, 0009, 0010)."""
+    trace = _Trace()
+    args = dict(
+        mission_loop=_StubLoop(trace),
+        controller=_StubController(trace),
+        cam=_StubCam(trace),
+        inner=_StubInner(trace),
+    )
+    pi_closed_loop_demo.graceful_shutdown(**args)
+    pi_closed_loop_demo.graceful_shutdown(**args)
+    # Eight calls, four per pass, no exceptions.
+    assert trace.calls == [
+        "loop", "controller", "cam", "inner_cleanup",
+        "loop", "controller", "cam", "inner_cleanup",
+    ]
+
+
+# ----------------------------------------------------------------------
+# Step 3 — degraded summary surfaces in /status (smoke; full coverage
+# in tests/test_builtins.py)
+# ----------------------------------------------------------------------
+
+
+def test_status_message_includes_degraded_summary_when_loop_is_degraded() -> None:
+    """End-to-end: build the demo router with a loop whose state()
+    reports `degraded=True` and verify the operator's `/status` reply
+    contains the `[DEGRADED: ...]` summary line."""
+    cfg = _cfg()
+
+    class _DegradedLoop:
+        intent = None
+
+        def state(self) -> dict:
+            return {
+                "running": True,
+                "intent": "follow person",
+                "tick_count": 12,
+                "degraded": True,
+                "degraded_reason": "vision_failures>=5 (7)",
+                "world_stale": True,
+                "world_age_s": 8.3,
+            }
+
+    inner = MockHardwareController()
+    controller = SafetyGate(inner, cfg.safety_default)
+    router = pi_closed_loop_demo.build_router_without_loop(
+        cfg, controller=controller, on_stop=lambda: None
+    )
+    pi_closed_loop_demo.attach_mission_loop(
+        router,
+        cfg=cfg,
+        controller=controller,
+        mission_loop=_DegradedLoop(),
+        default_intent="follow person",
+    )
+
+    cmd = Command(cmd=CommandName.STATUS, sender="t", safety=SafetyMode.BENCH)
+    reply = router.dispatch(cmd)
+    assert reply.ok is True
+    assert "[DEGRADED: vision_failures>=5 (7)]" in reply.message
+    assert "[stale world: 8.3s]" in reply.message
+    assert reply.telemetry["mission_loop"]["degraded"] is True
+    assert reply.telemetry["mission_loop"]["world_stale"] is True

@@ -36,7 +36,7 @@ The project is framed around six modules. Each milestone below lights one or mor
 |---|---|
 | **Transport** | Move bytes between OpenClaw and the device. Telegram first; pluggable later. (shipped, M0) |
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
-| **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2.) `MissionLoop` background closed loop (capture → infer → world → plan → MOVE) shipped Step 2; only dispatches MOVE per ADR-0010 so an LLM hallucination cannot arm or disarm the device. |
+| **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2.) `MissionLoop` background closed loop (capture → infer → world → plan → MOVE) shipped Step 2; only dispatches MOVE per ADR-0010 so an LLM hallucination cannot arm or disarm the device. Step 3 hardens the loop against real-world failure: stale-world refusal, per-stage consecutive counters with `degraded` summary, hung-tick handling, ordered `graceful_shutdown`. See [ADR-0011](docs/decisions.md) and [docs/pi-failure-modes.md](docs/pi-failure-modes.md). |
 | **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3); `GemmaMissionControl` shipped post-M4 behind `[gemma]` extra and `FREEMOTION_MISSION_BACKEND=gemma`. |
 | **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` (M3) + `YoloVision` (post-M4, behind `[yolo]` extra and `FREEMOTION_VISION_BACKEND=yolo`) + `PiCameraSource` live frame producer (Step 1, behind `[picam]` extra). |
 | **World state** | Shared "what's true now" — `WorldStateSnapshot` + `WorldState` (M3, shipped). |
@@ -190,20 +190,20 @@ Past work (shipped, post-M4):
 10. ~~`GemmaMissionControl` adapter behind `FREEMOTION_MISSION_BACKEND=gemma` and `pip install -e .[gemma]`.~~ See ADR-0008 in [`docs/decisions.md`](docs/decisions.md).
 11. ~~`PiCameraSource` live-camera adapter + `examples/pi_camera_demo/` standalone demo.~~ Step 1 of the Pi-first lockdown. See ADR-0009 in [`docs/decisions.md`](docs/decisions.md).
 12. ~~**Step 2 — Pi full closed loop.** `MissionLoop` (background `capture → infer → world → plan → MOVE`) + `examples/pi_closed_loop_demo/` (Telegram → live YOLO → `WorldState` → Gemma → bench-safe hardware action → `/status`). Loop only ever dispatches MOVE (ADR-0010); ARM/DISARM/STOP stay operator-driven through Telegram. `/mission_start` is refused in `dry_run`; `/stop` halts the loop *and* drops both pins LOW unconditionally. Camera/YOLO/Gemma failures all degrade to idle without crashing the loop. See [ADR-0010](docs/decisions.md) and [docs/pi-closed-loop.md](docs/pi-closed-loop.md).~~
+13. ~~**Step 3 — Real-world failure-mode hardening.** Survivability over capability. Stale-world timeout refuses MOVE on outdated perception (Gemma cannot act on a 30s-old world). Per-stage consecutive counters drive a `degraded` flag with a human-readable reason in `/status`; recovery is automatic when the failing stage stops failing. Hung-`mission.plan()` no longer leaks zombie threads — `stop()` preserves `_thread` so a fresh `start()` refuses, and `start()` reaps the dead orphan when the worker exits. `graceful_shutdown(...)` runs the demo teardown in a tested, ordered, exception-tolerant sequence. Every failure (camera unplugged, vision drop, mission hang, repeated dispatch fail, SIGTERM, restart) is contracted in [docs/pi-failure-modes.md](docs/pi-failure-modes.md) and covered by 31 new tests. See [ADR-0011](docs/decisions.md).~~
 
 Next, in priority order — **Pi-first lockdown** (Jetson is gated on these landing):
 
-13. **Step 3 — Real-world failure-mode hardening.** Explicit, tested handling for the failures *outside* the runtime that the structural tests don't cover: camera unplugged mid-mission, YOLO unavailable at boot vs. mid-run, Gemma unavailable / OOM mid-tick, stale or empty world state for >N ticks, `/stop` arriving mid-`move()`, SIGTERM during a tick, network drop while the loop is active. Every failure returns a protocol-shaped reply; nothing actuates in `dry_run`; `/stop` remains unconditional.
 14. **Step 4 — Pi reference architecture lock.** One canonical Pi stack doc (`docs/pi-reference.md` or extension of [docs/pi-closed-loop.md](docs/pi-closed-loop.md)) listing the supported command set, hardware path, model path, bench-safety behavior, and full env-var set. Docs match code exactly. The Pi path becomes copy-able to Jetson.
 15. **Step 5 — One repeatable Pi benchmark demo.** A named bench task (e.g. `pi_follow_bench`) with a fixed command sequence, fixed success criteria, and a short operator runbook. This demo becomes the **gate for Jetson work**.
 
-Then, only after Steps 2–5 are green:
+Then, only after Steps 4–5 are green:
 
 16. **Jetson Nano port** (M5). Same `HardwareController` Protocol + same vision/mission seams; new hardware adapter; same Pi reference architecture, copied. Heavier on-device YOLO/Gemma unlocks once the port is real.
 17. **ESP32 / Arduino bridges** (M5). Sensor / actuator coprocessors over UART/SPI to a heavier host.
 18. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.
 
-Move-to-Jetson gate: **A Raspberry Pi can receive a Telegram command, run live YOLO, update world state, get one Gemma decision, execute one bench-safe action, and report status back reliably.** Step 2 makes that path real on the bench; Steps 3–5 prove it survives the real world. Until all four are green, no Jetson work.
+Move-to-Jetson gate: **A Raspberry Pi can receive a Telegram command, run live YOLO, update world state, get one Gemma decision, execute one bench-safe action, and report status back reliably — and survive the real world.** Step 2 made the path real on the bench; Step 3 hardened it against environmental failure ([docs/pi-failure-modes.md](docs/pi-failure-modes.md)); Steps 4–5 lock the reference architecture and prove it on a repeatable benchmark. Until Steps 4 and 5 are green, no Jetson work.
 
 ## What success looks like
 

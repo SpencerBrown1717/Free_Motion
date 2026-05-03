@@ -321,24 +321,70 @@ def main() -> int:
     try:
         agent.run()
     finally:
-        # Order matters: stop the loop first so no tick can race the
-        # camera close, then close the camera, then GPIO cleanup.
-        try:
-            mission_loop.stop()
-        except Exception:  # pragma: no cover - defensive
-            LOG.warning("mission_loop.stop raised; ignoring", exc_info=True)
-        try:
-            cam.close()
-        except Exception:  # pragma: no cover - defensive
-            LOG.warning("camera.close raised; ignoring", exc_info=True)
-        cleanup = getattr(inner, "cleanup", None)
-        if callable(cleanup):
-            try:
-                cleanup()
-            except Exception:  # pragma: no cover - hardware-specific
-                LOG.warning("controller cleanup raised; ignoring", exc_info=True)
+        graceful_shutdown(
+            mission_loop=mission_loop,
+            controller=controller,
+            cam=cam,
+            inner=inner,
+        )
 
     return 0
+
+
+def graceful_shutdown(
+    *,
+    mission_loop: Any,
+    controller: Any,
+    cam: Any,
+    inner: Any,
+) -> None:
+    """Step 3: idempotent, ordered teardown for SIGINT / SIGTERM / `/stop`.
+
+    Order matters because the closed loop has overlapping resources:
+
+    1. **Mission loop first.** A still-ticking loop must not dispatch
+       a fresh MOVE *after* the camera or the controller has been
+       torn down. `MissionLoop.stop()` sets the stop event and joins
+       the worker thread within `join_timeout_s`; if the worker is
+       hung mid-`mission.plan()`, the helper logs and continues —
+       the daemon thread will be reaped on process exit.
+    2. **Hardware controller stop.** Drives both pins LOW
+       unconditionally. `SafetyGate.stop()` always passes through
+       (ADR-0006), so even in `dry_run` this drops the bench LEDs.
+       Independent from `mission_loop.stop()` so a SIGTERM during a
+       hung tick still drops the pins.
+    3. **Camera close.** Idempotent (ADR-0009). Releases libcamera
+       resources so the next process start finds the camera free.
+    4. **Inner controller cleanup.** `PiHardwareController.cleanup()`
+       releases `RPi.GPIO` (M4). Mock controllers don't implement
+       `cleanup()`; the helper checks `hasattr` to stay polymorphic.
+
+    Every step swallows its own exceptions: a single broken layer
+    cannot block the rest of the teardown. The function is **safe
+    to call from any thread, including a signal handler context**,
+    because every underlying primitive (`Event.set`, `Thread.join`,
+    GPIO writes, picamera2.close) is itself signal-safe in practice.
+    """
+    try:
+        mission_loop.stop()
+    except Exception:  # pragma: no cover - defensive
+        LOG.warning("mission_loop.stop raised; ignoring", exc_info=True)
+    try:
+        controller.stop()
+    except Exception:  # pragma: no cover - defensive
+        LOG.warning("controller.stop raised; ignoring", exc_info=True)
+    try:
+        cam.close()
+    except Exception:  # pragma: no cover - defensive
+        LOG.warning("camera.close raised; ignoring", exc_info=True)
+    cleanup = getattr(inner, "cleanup", None)
+    if callable(cleanup):
+        try:
+            cleanup()
+        except Exception:  # pragma: no cover - hardware-specific
+            LOG.warning(
+                "controller cleanup raised; ignoring", exc_info=True
+            )
 
 
 if __name__ == "__main__":

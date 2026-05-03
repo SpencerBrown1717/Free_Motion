@@ -371,3 +371,100 @@ def test_status_handler_tolerates_loop_state_exception() -> None:
     assert reply.ok is True
     assert reply.telemetry["mission_loop"]["running"] is False
     assert "loop.state() raised" in reply.telemetry["mission_loop"]["error"]
+
+
+# --- Step 3: status formatting for degraded + stale-world signals ---
+
+
+def _format_line(loop_state: dict) -> str:
+    """Run a status handler with a stub loop returning `loop_state` and
+    return the human-readable line for the mission loop."""
+
+    class _Loop:
+        def state(self) -> dict:
+            return loop_state
+
+    handler = make_status_handler(_cfg(), mission_loop=_Loop())
+    cmd = Command(cmd=CommandName.STATUS, sender="x")
+    reply = handler(cmd)
+    for line in reply.message.split("\n"):
+        if line.startswith("mission:"):
+            return line
+    raise AssertionError("no mission line in status message")
+
+
+def test_status_summary_idle_when_loop_idle() -> None:
+    line = _format_line({"running": False, "intent": None})
+    assert line == "mission: idle"
+
+
+def test_status_summary_running_includes_intent() -> None:
+    line = _format_line({"running": True, "intent": "follow person"})
+    assert line == "mission: running (intent='follow person')"
+
+
+def test_status_summary_includes_degraded_with_reason() -> None:
+    line = _format_line(
+        {
+            "running": True,
+            "intent": "follow",
+            "degraded": True,
+            "degraded_reason": "dispatch_failures>=5 (6)",
+        }
+    )
+    assert "mission: running" in line
+    assert "[DEGRADED: dispatch_failures>=5 (6)]" in line
+
+
+def test_status_summary_degraded_when_idle_still_visible() -> None:
+    """A degraded device that's been /stop'd should still surface the
+    last-known degraded reason — operator's ground truth post-mortem."""
+    line = _format_line(
+        {
+            "running": False,
+            "intent": None,
+            "degraded": True,
+            "degraded_reason": "vision_failures>=5 (12)",
+        }
+    )
+    assert "mission: idle" in line
+    assert "[DEGRADED: vision_failures>=5 (12)]" in line
+
+
+def test_status_summary_includes_stale_world_when_running() -> None:
+    line = _format_line(
+        {
+            "running": True,
+            "intent": "follow",
+            "world_stale": True,
+            "world_age_s": 7.342,
+        }
+    )
+    assert "[stale world: 7.3s]" in line
+
+
+def test_status_summary_omits_stale_world_when_not_running() -> None:
+    """A stopped loop is not actively stale — the `[stale world]`
+    badge would be misleading. Only show it during an active mission."""
+    line = _format_line(
+        {
+            "running": False,
+            "intent": None,
+            "world_stale": True,
+            "world_age_s": 7.0,
+        }
+    )
+    assert "[stale world" not in line
+    assert line == "mission: idle"
+
+
+def test_status_summary_handles_missing_world_age() -> None:
+    line = _format_line(
+        {
+            "running": True,
+            "intent": "follow",
+            "world_stale": True,
+            "world_age_s": None,
+        }
+    )
+    assert "[stale world]" in line

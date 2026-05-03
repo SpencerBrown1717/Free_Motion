@@ -151,15 +151,7 @@ def make_status_handler(
             except Exception:
                 loop_state = {"running": False, "error": "loop.state() raised"}
             telemetry["mission_loop"] = loop_state
-            message_parts.append(
-                "mission: "
-                + ("running" if loop_state.get("running") else "idle")
-                + (
-                    f" (intent={loop_state.get('intent')!r})"
-                    if loop_state.get("running")
-                    else ""
-                )
-            )
+            message_parts.append(_format_mission_loop_line(loop_state))
         return _ok(
             config,
             cmd,
@@ -247,6 +239,39 @@ def _safe_loop_state(mission_loop: Any) -> Dict[str, Any]:
     if not isinstance(state, dict):
         return {"running": False, "error": "loop.state() returned non-dict"}
     return dict(state)
+
+
+def _format_mission_loop_line(loop_state: Dict[str, Any]) -> str:
+    """One-line `/status` summary for the mission loop.
+
+    Step 3: surfaces three pieces of operator-relevant signal — the
+    base running/idle state, the **degraded** flag (if set) with its
+    reason, and the **stale-world** flag (when the world is older than
+    the configured timeout). The structured equivalents already live
+    in `telemetry.mission_loop`; this string is the human-readable
+    overview that an operator scanning a `/status` reply on Telegram
+    can act on without re-parsing JSON.
+    """
+    base = "running" if loop_state.get("running") else "idle"
+    parts = [f"mission: {base}"]
+
+    if loop_state.get("degraded"):
+        reason = loop_state.get("degraded_reason") or "no_reason"
+        parts.append(f"[DEGRADED: {reason}]")
+
+    if loop_state.get("world_stale") and loop_state.get("running"):
+        age = loop_state.get("world_age_s")
+        if isinstance(age, (int, float)):
+            parts.append(f"[stale world: {age:.1f}s]")
+        else:
+            parts.append("[stale world]")
+
+    if loop_state.get("running"):
+        intent = loop_state.get("intent")
+        if intent is not None:
+            parts.append(f"(intent={intent!r})")
+
+    return " ".join(parts)
 
 
 def make_capabilities_handler(config: Config, router: Router) -> Handler:
