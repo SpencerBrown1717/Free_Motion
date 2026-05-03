@@ -80,3 +80,30 @@ def test_config_is_frozen() -> None:
     cfg = Config.from_env(env={"TELEGRAM_BOT_TOKEN": "abc"})
     with pytest.raises(dataclasses.FrozenInstanceError):
         cfg.token = "different"  # type: ignore[misc]
+
+
+def test_from_env_default_denied_commands_is_empty() -> None:
+    cfg = Config.from_env(env={"TELEGRAM_BOT_TOKEN": "abc"})
+    assert cfg.denied_commands == frozenset()
+
+
+def test_from_env_parses_denied_commands() -> None:
+    cfg = Config.from_env(
+        env={
+            "TELEGRAM_BOT_TOKEN": "abc",
+            "FREEMOTION_DENIED_COMMANDS": "arm, move,led_on",
+        }
+    )
+    assert cfg.denied_commands == frozenset({"arm", "move", "led_on"})
+
+
+def test_from_env_strips_stop_from_denied_commands(caplog) -> None:
+    """`stop` is honored unconditionally per protocol; it cannot be denied."""
+    cfg = Config.from_env(
+        env={
+            "TELEGRAM_BOT_TOKEN": "abc",
+            "FREEMOTION_DENIED_COMMANDS": "arm,stop,move",
+        }
+    )
+    assert "stop" not in cfg.denied_commands
+    assert cfg.denied_commands == frozenset({"arm", "move"})

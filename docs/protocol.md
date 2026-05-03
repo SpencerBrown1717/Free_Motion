@@ -149,8 +149,8 @@ On startup the agent emits one self-describing reply-shaped frame to the configu
 
 ## Auth (v0)
 
-- **Telegram chat allowlist** — `TELEGRAM_ALLOWED_CHAT_IDS` (already in M0).
-- **Per-command allow/deny** — planned for M2 in the agent's config.
+- **Telegram chat allowlist** — `TELEGRAM_ALLOWED_CHAT_IDS` (M0). Unauthenticated chats never reach a handler.
+- **Per-command deny list** — `FREEMOTION_DENIED_COMMANDS` (M2). Comma-separated wire command names; refused commands return `error.code = "denied_by_policy"`. `stop` is exempt; the env parser strips it with a warning. See [ADR-0004](decisions.md#adr-0004--per-command-allowdeny-allow-by-default-explicit-deny-list-stop-always-exempt--2026-05-03).
 - Non-Telegram transports may add HMAC signing later; out of scope for v0.
 
 ## Errors
@@ -164,6 +164,7 @@ Stable error codes (extend deliberately):
 | `bad_args` | Envelope parsed but `args` (or another field) failed validation. |
 | `unsafe_in_mode` | Command refused because of the current `safety` mode. |
 | `device_busy` | Device cannot accept the command in its current state. |
+| `denied_by_policy` | Command rejected by the device's deny list (`FREEMOTION_DENIED_COMMANDS`). |
 | `internal` | Unhandled error inside the device. |
 
 Replies always include `error.message` (human-readable) alongside `error.code` (stable).

@@ -66,6 +66,14 @@ Fields and the env vars that fill them:
 | `led_pin` | `FREEMOTION_LED_PIN` (BCM int) | no | `None` |
 | `hardware_profile` | `FREEMOTION_HARDWARE` | no | `host` (suggested values: `host`, `mock`, `pi`) |
 | `enabled_features` | `FREEMOTION_FEATURES` (CSV) | no | empty |
+| `denied_commands` | `FREEMOTION_DENIED_COMMANDS` (CSV) | no | empty (no commands denied) |
+
+**Per-command deny list.** Listed wire command names are refused at dispatch time with `error.code = "denied_by_policy"`. Useful when a device is configured for one role (e.g. vision-only Pi) and should reject commands its handlers would otherwise execute. `stop` is exempt unconditionally — listing it issues a warning and is dropped. See [ADR-0004](decisions.md#adr-0004--per-command-allowdeny-allow-by-default-explicit-deny-list-stop-always-exempt--2026-05-03).
+
+```bash
+# refuse arm and move regardless of registered handlers
+export FREEMOTION_DENIED_COMMANDS="arm,move"
+```
 
 Bad values are warned and fall back to defaults. Missing token raises `SystemExit`.
 

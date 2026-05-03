@@ -38,6 +38,7 @@ class ErrorCode(str, enum.Enum):
     BAD_ARGS = "bad_args"
     UNSAFE_IN_MODE = "unsafe_in_mode"
     DEVICE_BUSY = "device_busy"
+    DENIED_BY_POLICY = "denied_by_policy"
     INTERNAL = "internal"
 
 

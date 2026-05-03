@@ -48,7 +48,7 @@ MockVision()                              # always returns empty scene
 MockVision(scripted=[r1, r2, r3])         # cycles through r1 -> r2 -> r3 -> r1 -> ...
 ```
 
-Deterministic. Useful for tests, demos, and the (forthcoming) follow-task example.
+Deterministic. Drives [`examples/local_sim_demo.py`](../examples/local_sim_demo.py) and the test suite.
 
 ### Real (planned)
 
@@ -73,7 +73,7 @@ class MissionDecision:
     confidence: float                     # 0.0..1.0
 
 
-@runtime_checkable
+    @runtime_checkable
 class MissionPolicy(Protocol):
     name: str
     @property
@@ -83,9 +83,11 @@ class MissionPolicy(Protocol):
         *,
         intent: str,
         scene: VisionResult,
-        world: Mapping[str, Any],
+        world: WorldStateSnapshot,
     ) -> MissionDecision: ...
 ```
+
+`world` is the M3 [`WorldStateSnapshot`](../freemotion/world/state.py); pass `WorldStateSnapshot()` when no live state is available. ADR-0005 in [`decisions.md`](decisions.md) records the shape.
 
 `plan` returns a **structured decision**, not free-form text. The runtime translates it back into a protocol `Command` and runs it through the router. That's the only contract the rest of the system needs.
 
@@ -133,11 +135,11 @@ Router.dispatch(Command(next_command, args, ...))   # protocol-typed
 Reply
 ```
 
-`scene` comes from a `VisionBackend.scene()` call (mock or real). `world` will come from `freemotion.world` once that lands (M3, tracked in [`docs/issues/m2-m3.md`](issues/m2-m3.md)).
+`scene` comes from a `VisionBackend.scene()` call (mock or real). `world` comes from `WorldState().snapshot()` ([`freemotion.world`](../freemotion/world/__init__.py), shipped in M3).
 
-## Where these will be wired
+## Where these are wired
 
-A planned example, `examples/mock_follow_task/`, will close the loop with both mocks. When real adapters ship, swapping each is one config flag — no other code changes.
+[`examples/local_sim_demo.py`](../examples/local_sim_demo.py) closes the loop with both mocks plus `WorldState`: vision detections feed `world.see(...)`, mission decisions consume the snapshot, the router executes the resulting `Command`, and post-dispatch hardware state is reflected back into the world. When real adapters land, swapping each is one config flag — no other code changes.
 
 ## Adding your own backend
 

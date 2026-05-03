@@ -37,8 +37,9 @@ The project is framed around six modules. Each milestone below lights one or mor
 | **Transport** | Move bytes between OpenClaw and the device. Telegram first; pluggable later. (shipped, M0) |
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
 | **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2) |
-| **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` shipped (M3 partial); Gemma small adapter pending. |
+| **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3 partial); Gemma small adapter pending. |
 | **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` shipped (M3 partial); YOLO adapter pending. |
+| **World state** | Shared "what's true now" — `WorldStateSnapshot` + `WorldState` (M3, shipped). |
 | **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` shipped (M2). `PiHardwareController` pending. |
 | **Safety** | Modes, hard stops, rate limits, watchdogs. Cuts across every other module. |
 
@@ -93,9 +94,12 @@ Now also shipped under M2 (foundation for M5):
 - `examples/mock_drone/` — second example, runs on any laptop with no hardware.
 - `docs/pi-runtime.md` — operator + contributor guide for the runtime.
 
+Now also shipped under M2:
+
+- **Per-command deny list** — `Config.denied_commands` (env: `FREEMOTION_DENIED_COMMANDS`), enforced in `Router.dispatch`. Refused commands return `error.code = "denied_by_policy"`. `stop` is always exempt. See [ADR-0004](docs/decisions.md#adr-0004--per-command-allowdeny-allow-by-default-explicit-deny-list-stop-always-exempt--2026-05-03).
+
 Still to do under M2 (tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md)):
 
-- Per-command allow/deny in `Config` + `Router`.
 - `PiHardwareController`.
 - Module hooks for future `motion` / `vision` / `mission_control` (lit up in M3).
 
@@ -112,12 +116,13 @@ What's now in the repo:
 5. **`docs/models.md`** — interface contract, mock behavior, planned real adapters, swap path.
 6. **ADR-0003** — interfaces + mocks now, real models behind feature flags later.
 
+7. **Shared world state** — `freemotion/world/` with `WorldStateSnapshot` (immutable read view) and `WorldState` (lock-protected wrapper). Five fields: `target`, `current_state`, `confidence`, `last_seen`, `next_action`. `MissionPolicy.plan` now takes `WorldStateSnapshot` directly. See [ADR-0005](docs/decisions.md#adr-0005--world-state-v1-narrow-lock-protected-snapshot-shaped--2026-05-03).
+8. **End-to-end loop demo** — [`examples/local_sim_demo.py`](examples/local_sim_demo.py) closes the M3 loop on mocks: intent → vision → world → mission_control → router → hardware → world. No setup, no hardware, no Telegram, no model download. Runs in CI as a smoke test. Long-form walkthrough in [`docs/demo.md`](docs/demo.md).
+
 Still to do under M3 (tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md)):
 
 - **`YoloVision` adapter** behind `FREEMOTION_VISION_BACKEND=yolo` and a `pip install -e .[yolo]` extra.
 - **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra.
-- **Shared world state** in `freemotion/world/` — feeds the `world` arg of `MissionPolicy.plan`.
-- **`examples/mock_follow_task/`** — closes the loop on mocks; one config flag flip away from running on YOLO + Gemma once those land.
 
 ### M4 — One real hardware demo (gated)
 

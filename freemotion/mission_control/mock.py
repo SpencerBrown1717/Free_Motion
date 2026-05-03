@@ -13,10 +13,9 @@ Pure, deterministic, no LLM. The structural pattern Gemma will follow.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
-
 from freemotion.protocol import CommandName
 from freemotion.vision import VisionResult
+from freemotion.world import WorldStateSnapshot
 
 from .interface import MissionDecision
 
@@ -39,7 +38,7 @@ class MockMissionControl:
         *,
         intent: str,
         scene: VisionResult,
-        world: Mapping[str, Any],
+        world: WorldStateSnapshot,
     ) -> MissionDecision:
         normalized = intent.lower().strip()
 

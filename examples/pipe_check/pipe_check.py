@@ -145,7 +145,10 @@ def make_led_handlers(config: Config, led: Led) -> tuple[Handler, Handler]:
 
 
 def build_router(config: Config, led: Led) -> Router:
-    router = Router(device_id=config.device_id)
+    router = Router(
+        device_id=config.device_id,
+        denied_commands=config.denied_commands,
+    )
     router.register(CommandName.PING, make_ping_handler(config))
     router.register(
         CommandName.STOP,

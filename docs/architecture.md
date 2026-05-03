@@ -45,6 +45,7 @@ The system is framed around six modules. Each has a clear job and a clear status
 | **Mission control** | Goal + perception → next action. Gemma small target. | `MissionPolicy` Protocol + `MockMissionControl` shipped (M3 partial) — see [models.md](models.md) and `freemotion/mission_control/`; `GemmaMissionControl` pending |
 | **Vision** | On-device perception. YOLO target. | `VisionBackend` Protocol + `MockVision` shipped (M3 partial) — see [models.md](models.md) and `freemotion/vision/`; `YoloVision` pending |
 | **Hardware adapter** | Per-platform actuators (Pi GPIO first, then Jetson, ESP32, Arduino). | `HardwareController` Protocol + `MockHardwareController` shipped (M2); Pi GPIO via `examples/pipe_check/`; `PiHardwareController` on the roadmap |
+| **World state** | Shared "what does the device think is true now." | `WorldStateSnapshot` + `WorldState` shipped (M3) — see `freemotion/world/` |
 | **Safety** | Modes, hard stops, rate limits, watchdogs. Cuts across every other module. | basics in protocol (M1), expanded with M4 |
 
 ## Repository layout (today)
@@ -61,7 +62,8 @@ Free_Motion/
 │   ├── agent/            # Telegram transport + handle_text + built-in handlers (M2)
 │   ├── hardware/         # HardwareController Protocol + MockHardwareController (M2)
 │   ├── vision/           # VisionBackend Protocol + MockVision (M3 partial)
-│   └── mission_control/  # MissionPolicy Protocol + MockMissionControl (M3 partial)
+│   ├── mission_control/  # MissionPolicy Protocol + MockMissionControl (M3 partial)
+│   └── world/            # WorldStateSnapshot + WorldState (M3)
 ├── docs/
 │   ├── architecture.md   # this file
 │   ├── decisions.md      # short ADR ledger
@@ -71,9 +73,11 @@ Free_Motion/
 │   ├── pi-setup.md       # how to prepare a Pi
 │   └── protocol.md       # command + reply envelope contract (v0)
 ├── examples/
+│   ├── local_sim_demo.py # 60-second laptop demo: closes the M3 loop on mocks, no setup
 │   ├── pipe_check/       # Pi reference: GPIO LED + Agent wiring
 │   └── mock_drone/       # No-hardware reference: MockHardwareController + Agent
-├── tests/                # protocol + config + router + builtins + agent + hardware + vision + mission + pipe_check
+├── tests/                # protocol + config + router + builtins + agent + hardware + vision + mission + world + pipe_check + local_sim_demo
+├── CHANGELOG.md
 └── .github/workflows/    # ci.yml: install + import + pytest
 ```
 

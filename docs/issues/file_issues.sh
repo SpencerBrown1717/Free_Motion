@@ -23,27 +23,8 @@
 
 set -euo pipefail
 
-# 1. Per-command allow/deny in Config + Router -------------------------------
-gh issue create \
-  --title "Per-command allow/deny in Config + Router" \
-  --label "enhancement,m2,runtime" \
-  --body-file - <<'EOF'
-The Router currently dispatches any registered command to its handler. We need an opt-in deny list per device, so a Pi configured for "vision only" can refuse `arm` / `move` even if the handler is wired.
-
-**Scope**
-
-- `Config.denied_commands: FrozenSet[str]` (parsed from `FREEMOTION_DENIED_COMMANDS`).
-- `Router.dispatch` checks the deny set before invoking the handler; refused commands return `error.code = "denied_by_policy"` (new code) or `unauthorized`.
-- One ADR entry recording the call between "deny by default" vs "allow by default" (proposed: allow by default, with an explicit deny list as policy).
-- Tests covering allow path, deny path, and the `stop` exception (`stop` is honored regardless of policy).
-
-**Acceptance**
-
-- New env var documented in `docs/pi-runtime.md`.
-- `examples/pipe_check/README.md` and `examples/mock_drone/README.md` note the option.
-
-Tracked in `docs/issues/m2-m3.md`.
-EOF
+# 1. (was: per-command allow/deny — shipped, ADR-0004) ----------------------
+# No issue filed.
 
 # 2. PiHardwareController in freemotion/hardware/ ----------------------------
 gh issue create \
@@ -116,58 +97,12 @@ The `MissionPolicy` interface and `MockMissionControl` shipped (see `docs/models
 Tracked in `docs/issues/m2-m3.md`.
 EOF
 
-# 5. Shared world state ------------------------------------------------------
-gh issue create \
-  --title "Shared world state: freemotion.world" \
-  --label "enhancement,m3,state" \
-  --body-file - <<'EOF'
-A small, structured place for "what does the device think is true right now."
+# 5. (was: shared world state — shipped, ADR-0005) --------------------------
+# No issue filed.
 
-**Fields**
-
-- `target` (current goal)
-- `current_state` (idle / armed / moving / ...)
-- `confidence` (0..1)
-- `last_seen` (per target)
-- `next_action`
-
-**Scope**
-
-- `freemotion/world/__init__.py` with a `WorldState` dataclass and a thread-safe accessor.
-- Updated by vision and mission_control, read by the router for `/status`.
-- Becomes the `world` argument that `MissionPolicy.plan(...)` already accepts.
-
-**Acceptance**
-
-- Tests for concurrent updates.
-- Wired into one of the `/status` reply telemetry fields.
-
-Tracked in `docs/issues/m2-m3.md`.
-EOF
-
-# 6. examples/mock_follow_task ----------------------------------------------
-gh issue create \
-  --title "examples/mock_follow_task: end-to-end loop on mocks" \
-  --label "example,m3" \
-  --body-file - <<'EOF'
-A third runnable example that closes the loop with both mocks already shipped:
-
-1. `MockVision` "sees" a target.
-2. `MockMissionControl.plan(...)` decides to follow.
-3. Router dispatches the resulting `Command`.
-4. `MockHardwareController` reports a fake position update.
-5. World state and `/status` reflect the loop.
-
-No real hardware. No real models. Pure demonstration of the M3 loop, runs on any laptop.
-
-**Acceptance**
-
-- `examples/mock_follow_task/README.md` with a one-command run.
-- One five-step demo script anyone can paste into a Telegram chat.
-- Swappable to `YoloVision` / `GemmaMissionControl` by changing two env vars once issues 3 and 4 land.
-
-Tracked in `docs/issues/m2-m3.md`.
-EOF
+# 6. (was: examples/mock_follow_task — shipped as local_sim_demo.py) --------
+# No issue filed.
 
 echo
-echo "Done. Six issues created (or attempted). Cross-link them in ROADMAP.md."
+echo "Done. Three issues created (or attempted): PiHardwareController, YoloVision, GemmaMissionControl."
+echo "Cross-link them in ROADMAP.md."

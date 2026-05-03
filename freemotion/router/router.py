@@ -6,7 +6,7 @@ Maps `CommandName` to a handler, dispatches a `Command`, and returns a
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List
+from typing import Callable, Dict, FrozenSet, Iterable, List, Optional
 
 from freemotion.protocol import (
     Command,
@@ -30,11 +30,23 @@ class Router:
     correlation id. Handler exceptions are caught and surfaced as
     `internal` replies. Both behaviors keep dispatch total: the agent
     can always send something back.
+
+    `denied_commands` is an opt-in policy list (wire command names, e.g.
+    `{"arm", "move"}`). When set, dispatch returns a `denied_by_policy`
+    error before invoking the handler. `stop` is exempt from the deny
+    policy unconditionally — see ADR-0004 in `docs/decisions.md`.
     """
 
-    def __init__(self, *, device_id: str) -> None:
+    def __init__(
+        self,
+        *,
+        device_id: str,
+        denied_commands: Optional[Iterable[str]] = None,
+    ) -> None:
         self._device_id = device_id
         self._handlers: Dict[CommandName, Handler] = {}
+        denied: FrozenSet[str] = frozenset(denied_commands or ())
+        self._denied: FrozenSet[str] = denied - {CommandName.STOP.value}
 
     def register(self, name: CommandName, handler: Handler) -> None:
         if name in self._handlers:
@@ -48,7 +60,20 @@ class Router:
         """Sorted list of registered command names (wire form)."""
         return sorted(c.value for c in self._handlers)
 
+    @property
+    def denied(self) -> FrozenSet[str]:
+        """Effective deny set (with `stop` always excluded)."""
+        return self._denied
+
     def dispatch(self, cmd: Command) -> Reply:
+        if cmd.cmd.value in self._denied:
+            return self._reply_err(
+                cmd,
+                code=ErrorCode.DENIED_BY_POLICY,
+                message=(
+                    f"command '{cmd.cmd.value}' denied by device policy"
+                ),
+            )
         handler = self._handlers.get(cmd.cmd)
         if handler is None:
             return self._reply_err(

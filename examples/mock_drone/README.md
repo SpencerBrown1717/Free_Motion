@@ -49,6 +49,10 @@ FREEMOTION_HARDWARE=mock
 
 # Default is dry_run (safest). Set to bench so /arm and /move actuate.
 FREEMOTION_SAFETY_DEFAULT=bench
+
+# Optional per-command deny list (CSV of wire command names). Refused at
+# the router with error.code = "denied_by_policy". `stop` cannot be denied.
+# FREEMOTION_DENIED_COMMANDS=arm,move
 ```
 
 ## 3. Run

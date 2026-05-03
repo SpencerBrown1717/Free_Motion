@@ -13,6 +13,7 @@ from typing import Any, Mapping, Optional, Protocol, runtime_checkable
 
 from freemotion.protocol import CommandName
 from freemotion.vision import VisionResult
+from freemotion.world import WorldStateSnapshot
 
 
 @dataclasses.dataclass(frozen=True)
@@ -55,6 +56,10 @@ class MissionPolicy(Protocol):
         *,
         intent: str,
         scene: VisionResult,
-        world: Mapping[str, Any],
+        world: WorldStateSnapshot,
     ) -> MissionDecision:
-        """Map an intent + scene + world state to a single next action."""
+        """Map an intent + scene + world state to a single next action.
+
+        Pass `WorldStateSnapshot()` (the default) when no live world state
+        is available; the policy must accept that case without raising.
+        """

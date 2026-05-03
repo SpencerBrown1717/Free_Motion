@@ -48,6 +48,10 @@ TELEGRAM_BOT_TOKEN=123456:ABC-your-token-here
 
 # Optional; default is dry_run (safest). Set to "bench" so /led actuates:
 # FREEMOTION_SAFETY_DEFAULT=bench
+
+# Optional per-command deny list (CSV of wire command names). Refused at
+# the router with error.code = "denied_by_policy". `stop` cannot be denied.
+# FREEMOTION_DENIED_COMMANDS=led_on,led_off
 ```
 
 Load it into the current shell:

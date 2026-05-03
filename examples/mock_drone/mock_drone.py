@@ -37,7 +37,10 @@ LOG = logging.getLogger("freemotion.mock_drone")
 
 
 def build_router(cfg: Config, controller: MockHardwareController) -> Router:
-    router = Router(device_id=cfg.device_id)
+    router = Router(
+        device_id=cfg.device_id,
+        denied_commands=cfg.denied_commands,
+    )
     router.register(CommandName.PING, make_ping_handler(cfg))
     router.register(
         CommandName.STATUS,

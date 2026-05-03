@@ -33,6 +33,15 @@ def _parse_features(raw: str) -> FrozenSet[str]:
     return frozenset(p.strip() for p in raw.split(",") if p.strip())
 
 
+def _parse_denied_commands(raw: str) -> FrozenSet[str]:
+    """Comma-separated wire command names. Values are not validated here
+    against `CommandName`; an unknown name in the deny set is harmless
+    (it just denies a command the device wouldn't have known anyway)
+    and forward-compatible with newer protocol versions.
+    """
+    return frozenset(p.strip() for p in raw.split(",") if p.strip())
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     """Free Motion device config.
@@ -48,6 +57,7 @@ class Config:
     led_pin: Optional[int] = None
     hardware_profile: str = "host"
     enabled_features: FrozenSet[str] = frozenset()
+    denied_commands: FrozenSet[str] = frozenset()
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "Config":
@@ -93,6 +103,14 @@ class Config:
 
         enabled = _parse_features(e.get("FREEMOTION_FEATURES", ""))
 
+        denied = _parse_denied_commands(e.get("FREEMOTION_DENIED_COMMANDS", ""))
+        if "stop" in denied:
+            LOG.warning(
+                "FREEMOTION_DENIED_COMMANDS lists 'stop'; ignoring. "
+                "stop is honored unconditionally per protocol v0."
+            )
+            denied = denied - {"stop"}
+
         return cls(
             token=token,
             allowed_chat_ids=allowed,
@@ -101,4 +119,5 @@ class Config:
             led_pin=led_pin,
             hardware_profile=hardware_profile,
             enabled_features=enabled,
+            denied_commands=denied,
         )

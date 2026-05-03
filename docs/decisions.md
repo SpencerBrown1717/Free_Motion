@@ -59,11 +59,45 @@ Each ADR has:
 - **Mock backends are first-class, not placeholders.** `MockVision` and `MockMissionControl` are the deterministic implementations the test suite, demos, and `examples/mock_follow_task/` will use indefinitely. They are the canonical reference for the contract; real adapters must match their behavior on the same inputs to the extent the contract is determinate.
 - **One method on `VisionBackend`: `scene()`.** Backends manage their own input source. Callers don't pass frames in; the backend owns the camera, frame buffer, or scripted timeline. This keeps the interface trivial for callers and gives real adapters room to optimize internally.
 - **`MissionPolicy.plan` returns a single `MissionDecision`, not a plan tree.** One concrete next action (one `CommandName` + args), plus a reason and a confidence. `next_command=None` is the explicit "do nothing" signal. Anything richer (multi-step plans, tool calls, free-form text) is deferred until a real adapter forces it. Constraint here keeps the integration cheap and the loop debuggable.
-- **`MissionPolicy.plan` takes vision + world as inputs.** Mission control can react to scene state without owning the camera. World state (`freemotion.world`, M3) becomes the carrier for everything else (current_state, last_seen, next_action). Until that lands, callers pass `world={}`.
+- **`MissionPolicy.plan` takes vision + world as inputs.** Mission control can react to scene state without owning the camera. World state (`freemotion.world`, M3) becomes the carrier for everything else (current_state, last_seen, next_action). The `world` arg's concrete type was tightened in ADR-0005 to `WorldStateSnapshot`.
 - **Real adapters land behind config flags, not extras-by-default.** `FREEMOTION_VISION_BACKEND=mock|yolo` and `FREEMOTION_MISSION_BACKEND=mock|gemma`, defaulting to mock. The flags themselves don't ship until the adapters do — adding flags before they're meaningful would be cargo culting.
 - **Heavy deps go behind `pyproject.toml` extras.** `pip install -e .[yolo]` and `pip install -e .[gemma]`. The base install stays stdlib + `python-telegram-bot`, the same as today. Tests for real adapters skip cleanly when their dep isn't installed.
 
 **Status.** Locked. Real adapters are tracked as separate issues in [`docs/issues/m2-m3.md`](issues/m2-m3.md) (#3 and #4). The interfaces stay frozen until at least one real adapter on each side ships and tells us what's missing.
+
+---
+
+## ADR-0004 — Per-command allow/deny: allow by default, explicit deny list, `stop` always exempt — 2026-05-03
+
+**Context.** A device tuned for one role (e.g. "vision only" Pi, or a desk-bound bench rig) needs to refuse commands its handlers would otherwise execute. Without a policy layer, contributors hard-code refusals into individual handlers — fragile, easy to miss, easy to bypass.
+
+**Decisions.**
+
+- **Allow by default.** A registered handler runs unless the command is on the deny list. The alternative — deny by default with an explicit allow list — would require every device config to enumerate its capabilities, doubling the surface area of `Config` for no operational gain. Deny lists are the smaller, more honest knob.
+- **Policy lives on `Router`, not `Agent`.** The check happens at dispatch, before the handler runs. That means it covers slash, JSON, and any future transport equally; transports never need to know about it.
+- **Wire the policy from `Config.denied_commands` (env var `FREEMOTION_DENIED_COMMANDS`).** Comma-separated wire command names. Unknown names are tolerated (forward-compatible with newer protocol versions).
+- **`stop` is exempt unconditionally.** Users can list `stop` in `FREEMOTION_DENIED_COMMANDS`; both `Config.from_env` (with a warning log) and `Router.__init__` strip it. Hard-stop must work in any policy state, full stop.
+- **Refused commands return `error.code = "denied_by_policy"`, not `unauthorized`.** Mixing the two would conflate "you're not allowed to talk to this device" (auth) with "this device chose not to do that command" (policy). Different observables, different alerts, different fixes.
+- **Deny check precedes the unknown-command check.** A command that's both denied and not registered must report the deny, so an attacker probing for capabilities can't tell whether the command exists.
+
+**Status.** Locked. Adding allow lists later (if a deployment really needs them) is additive and doesn't conflict with this ADR.
+
+---
+
+## ADR-0005 — World state v1: narrow, lock-protected, snapshot-shaped — 2026-05-03
+
+**Context.** Mission control needs a place to read "what does the device think is true right now," and vision needs a place to write what it just saw. Without a typed shared structure, the third component to land would invent its own — and we'd be wiring three formats together.
+
+**Decisions.**
+
+- **Snapshot-shaped, not actor-shaped.** `WorldStateSnapshot` is a frozen dataclass; `WorldState` is a thread-safe wrapper that hands out snapshots. Readers never see a half-applied write; writers never block on each other beyond the lock. Cheaper than an event bus, easier to reason about than a CRDT.
+- **Five fields only:** `target`, `current_state`, `confidence`, `last_seen` (per target), `next_action`. The user-facing roadmap listed exactly these. Adding fields requires an ADR; deletions require bumping a version. Wider state belongs in dedicated modules.
+- **`MissionPolicy.plan` takes `WorldStateSnapshot`, not `Mapping[str, Any]`.** This is the typed completion of the placeholder in ADR-0003. Tightening the type now is cheap; tightening it after a real adapter ships would not be.
+- **Updates are total replacements via `dataclasses.replace`.** `update(**changes)` swaps the snapshot reference under the lock; we never mutate fields in place. Old snapshots stay valid forever.
+- **`see(label, *, confidence=...)` is the canonical vision → world hop.** Sets `target`, appends to `last_seen`, optionally records `confidence`, all atomically. Encodes the vision-recorded-a-detection pattern so callers don't reinvent it (and don't accidentally race two writers on `last_seen`).
+- **No persistence in v1.** State lives in process memory. Disk-backed or remote state crosses module boundaries we don't have yet (telemetry sink, mission history); deferred until a second concrete consumer demands it.
+
+**Status.** Locked. The `examples/local_sim_demo.py` script is the canonical reference for how to wire `WorldState` into a device.
 
 ## Pending
 
