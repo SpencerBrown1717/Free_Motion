@@ -47,6 +47,24 @@ Each ADR has:
 
 **Status.** Locked. The Protocol surface stays as-is until a `PiHardwareController` (or similar) lands and tells us what's actually missing.
 
+---
+
+## ADR-0003 — Vision and mission control: interfaces + mocks now, real models behind feature flags later — 2026-05-03
+
+**Context.** YOLO and Gemma small are core to the project's identity, but pulling either into the runtime as a hard dependency would slow CI, lock out contributors without a GPU, and tie the runtime to upstream model releases. The pressure was to land the architecture for both **now** without paying any of those costs.
+
+**Decisions.**
+
+- **Interfaces ship before any model.** `VisionBackend` and `MissionPolicy` are Protocols (matching the `HardwareController` precedent in ADR-0002). Real adapters (`YoloVision`, `GemmaMissionControl`) come later as separate PRs.
+- **Mock backends are first-class, not placeholders.** `MockVision` and `MockMissionControl` are the deterministic implementations the test suite, demos, and `examples/mock_follow_task/` will use indefinitely. They are the canonical reference for the contract; real adapters must match their behavior on the same inputs to the extent the contract is determinate.
+- **One method on `VisionBackend`: `scene()`.** Backends manage their own input source. Callers don't pass frames in; the backend owns the camera, frame buffer, or scripted timeline. This keeps the interface trivial for callers and gives real adapters room to optimize internally.
+- **`MissionPolicy.plan` returns a single `MissionDecision`, not a plan tree.** One concrete next action (one `CommandName` + args), plus a reason and a confidence. `next_command=None` is the explicit "do nothing" signal. Anything richer (multi-step plans, tool calls, free-form text) is deferred until a real adapter forces it. Constraint here keeps the integration cheap and the loop debuggable.
+- **`MissionPolicy.plan` takes vision + world as inputs.** Mission control can react to scene state without owning the camera. World state (`freemotion.world`, M3) becomes the carrier for everything else (current_state, last_seen, next_action). Until that lands, callers pass `world={}`.
+- **Real adapters land behind config flags, not extras-by-default.** `FREEMOTION_VISION_BACKEND=mock|yolo` and `FREEMOTION_MISSION_BACKEND=mock|gemma`, defaulting to mock. The flags themselves don't ship until the adapters do — adding flags before they're meaningful would be cargo culting.
+- **Heavy deps go behind `pyproject.toml` extras.** `pip install -e .[yolo]` and `pip install -e .[gemma]`. The base install stays stdlib + `python-telegram-bot`, the same as today. Tests for real adapters skip cleanly when their dep isn't installed.
+
+**Status.** Locked. Real adapters are tracked as separate issues in [`docs/issues/m2-m3.md`](issues/m2-m3.md) (#3 and #4). The interfaces stay frozen until at least one real adapter on each side ships and tells us what's missing.
+
 ## Pending
 
 If you make an architectural call that future contributors will ask "why?" about, write a four-line ADR here. Bias toward writing them down. Reverse-engineering decisions is more expensive than recording them.

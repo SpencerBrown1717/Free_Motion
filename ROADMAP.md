@@ -37,8 +37,8 @@ The project is framed around six modules. Each milestone below lights one or mor
 | **Transport** | Move bytes between OpenClaw and the device. Telegram first; pluggable later. (shipped, M0) |
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
 | **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2) |
-| **Mission control** | Goal + perception → next action. Stub now, Gemma small later. |
-| **Vision** | On-device perception. Stub now, YOLO later. |
+| **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` shipped (M3 partial); Gemma small adapter pending. |
+| **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` shipped (M3 partial); YOLO adapter pending. |
 | **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` shipped (M2). `PiHardwareController` pending. |
 | **Safety** | Modes, hard stops, rate limits, watchdogs. Cuts across every other module. |
 
@@ -99,22 +99,25 @@ Still to do under M2 (tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md))
 - `PiHardwareController`.
 - Module hooks for future `motion` / `vision` / `mission_control` (lit up in M3).
 
-### M3 — Mission and vision stubs
+### M3 — Mission and vision stubs (interfaces shipped, loop pending)
 
 Goal: turn the runtime into the start of an AI motion stack with stubbed brains, so the loop is real before the models are.
 
-What gets built:
+What's now in the repo:
 
-1. **Vision interface** (YOLO target): `detect_person`, `detect_obstacles`, basic scene state.
-2. **Mission control interface** (Gemma small target): `parse_intent`, `choose_action`, `next_step`.
-3. **Shared world state**: `target`, `current_state`, `confidence`, `last_seen`, `next_action`.
-4. **Loop**: receive command → inspect scene → decide → act → report.
+1. **Vision interface** — `VisionBackend` Protocol with `name`, `available`, `scene() -> VisionResult`. `Detection(label, confidence, bbox)` and `VisionResult(detections, ts)` are the carrier types.
+2. **`MockVision`** — scripted, deterministic, cycles. Drives tests and demos.
+3. **Mission control interface** — `MissionPolicy` Protocol with `plan(intent, scene, world) -> MissionDecision`. `MissionDecision` carries one `CommandName` + args + reason + confidence; `next_command=None` is "idle."
+4. **`MockMissionControl`** — rule-based: `stop` / `disarm` / `follow person` / idle. The structural pattern Gemma will follow.
+5. **`docs/models.md`** — interface contract, mock behavior, planned real adapters, swap path.
+6. **ADR-0003** — interfaces + mocks now, real models behind feature flags later.
 
-Deliverables:
+Still to do under M3 (tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md)):
 
-- `freemotion/vision/`, `freemotion/mission_control/`
-- `docs/models.md`
-- `examples/mock_follow_task/`
+- **`YoloVision` adapter** behind `FREEMOTION_VISION_BACKEND=yolo` and a `pip install -e .[yolo]` extra.
+- **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra.
+- **Shared world state** in `freemotion/world/` — feeds the `world` arg of `MissionPolicy.plan`.
+- **`examples/mock_follow_task/`** — closes the loop on mocks; one config flag flip away from running on YOLO + Gemma once those land.
 
 ### M4 — One real hardware demo (gated)
 
