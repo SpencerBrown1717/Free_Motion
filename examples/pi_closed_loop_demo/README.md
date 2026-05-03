@@ -1,6 +1,6 @@
-# pi_closed_loop_demo (Step 2)
+# pi_closed_loop_demo — the canonical Pi reference
 
-The first **end-to-end** Free Motion device. A Raspberry Pi runs the standard runtime, plus a background mission loop that ties every shipped component into one closed loop:
+The first **end-to-end** Free Motion device, and as of Step 4 the **canonical Pi reference architecture** ([`docs/pi-reference.md`](../../docs/pi-reference.md)). A Raspberry Pi runs the standard runtime, plus a background mission loop that ties every shipped component into one closed loop:
 
 ```
 Telegram
@@ -177,13 +177,14 @@ If `vision.available` was False at startup, the demo refused to launch (exit cod
 | `pi_camera_demo` | no | yes | no | yes | no | yes (in-proc) |
 | **`pi_closed_loop_demo`** | **yes** | **yes** | **yes** | **yes** | **yes** | **yes (background thread)** |
 
-This demo is the canonical reference for what a Free Motion device looks like end-to-end. Step 4 of the roadmap will lock that in as the official architecture before any Jetson work begins.
+This demo is the canonical reference for what a Free Motion device looks like end-to-end, and as of Step 4 it is the **official Pi reference architecture** that M5 Jetson must reproduce on different hardware. The full lock — frozen command surface, hardware path, model path, env-var contract, safety contract, status contract, failure model, and the "must-keep / allowed-to-differ" list for Jetson — is in [`docs/pi-reference.md`](../../docs/pi-reference.md).
 
 ## Related docs
 
 - [SAFETY.md](../../SAFETY.md) — bench rules, what counts as bench-safe.
 - [docs/pi-hardware.md](../../docs/pi-hardware.md) — `PiHardwareController` + `SafetyGate`.
 - [docs/pi-camera.md](../../docs/pi-camera.md) — `PiCameraSource` setup.
-- [docs/pi-closed-loop.md](../../docs/pi-closed-loop.md) — canonical closed-loop architecture, env vars, failure model.
+- [docs/pi-reference.md](../../docs/pi-reference.md) — **Step 4 lock.** Single source of truth for the canonical Pi path: command surface, hardware path, model path, env vars, safety, status, failure model, M5 port target.
+- [docs/pi-closed-loop.md](../../docs/pi-closed-loop.md) — Step 2 architectural reference (component diagram, loop body, env vars).
 - [docs/pi-failure-modes.md](../../docs/pi-failure-modes.md) — Step 3 environmental failure reference + one-page operator runbook.
-- [docs/decisions.md](../../docs/decisions.md) — ADR-0011 (Step 3 hardening), ADR-0010 (`MissionLoop`), ADR-0009 (camera), ADR-0008 (Gemma), ADR-0007 (YOLO), ADR-0006 (SafetyGate).
+- [docs/decisions.md](../../docs/decisions.md) — ADR-0012 (Step 4 lock), ADR-0011 (Step 3 hardening), ADR-0010 (`MissionLoop`), ADR-0009 (camera), ADR-0008 (Gemma), ADR-0007 (YOLO), ADR-0006 (SafetyGate).

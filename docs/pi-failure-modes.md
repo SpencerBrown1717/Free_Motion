@@ -2,7 +2,7 @@
 
 Step 1 made perception real; Step 2 closed the loop; **Step 3 is about what happens when reality misbehaves.** This page is the canonical reference for every environmental failure the Pi closed loop is contracted to survive — what you'll see, where the signal lands in `/status`, and what the operator should do.
 
-> **Status.** Step 3 of the Pi-first lockdown plan. The runtime contract is implemented in [`freemotion/agent/mission_loop.py`](../freemotion/agent/mission_loop.py); the design rationale is in [ADR-0011](decisions.md). The contract is locked at the v1 surface described here.
+> **Status.** Step 3 of the Pi-first lockdown plan. The runtime contract is implemented in [`freemotion/agent/mission_loop.py`](../freemotion/agent/mission_loop.py); the design rationale is in [ADR-0011](decisions.md). The contract is locked at the v1 surface described here. **Step 4** ([`docs/pi-reference.md`](pi-reference.md)) treats this page as part of the reference architecture lock — the failure model is now part of the M5 baseline that Jetson must reproduce on its own hardware.
 
 ## The principle
 

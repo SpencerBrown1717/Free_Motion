@@ -2,6 +2,8 @@
 
 How to write a Free Motion device on top of `freemotion.config`, `freemotion.router`, and `freemotion.agent`. Aimed at contributors who can read Python and just want to ship something.
 
+> **Looking for the canonical Pi reference architecture?** This page covers **building** a device on the runtime. The locked contract for what a Pi Free Motion device *is* — supported commands, hardware path, model path, env-var contract, safety contract — lives in [`docs/pi-reference.md`](pi-reference.md). Read both: this page tells you how to build, that one tells you what to conform to.
+
 ## TL;DR
 
 A device is **three things plus your hardware**:
@@ -67,6 +69,8 @@ Fields and the env vars that fill them:
 | `hardware_profile` | `FREEMOTION_HARDWARE` | no | `host` (suggested values: `host`, `mock`, `pi`) |
 | `pi_armed_pin` | `FREEMOTION_PI_ARMED_PIN` (BCM int) | no | `None` (controller default: BCM 27) |
 | `pi_moving_pin` | `FREEMOTION_PI_MOVING_PIN` (BCM int) | no | `None` (controller default: BCM 22) |
+| `vision_backend` | `FREEMOTION_VISION_BACKEND` | no | `mock` (also accepts `yolo`; see [`docs/models.md`](models.md)) |
+| `mission_backend` | `FREEMOTION_MISSION_BACKEND` | no | `mock` (also accepts `gemma`; see [`docs/models.md`](models.md)) |
 | `enabled_features` | `FREEMOTION_FEATURES` (CSV) | no | empty |
 | `denied_commands` | `FREEMOTION_DENIED_COMMANDS` (CSV) | no | empty (no commands denied) |
 
@@ -175,7 +179,9 @@ Set `TELEGRAM_BOT_TOKEN`, run it, DM the bot `/ping`. That's a real Free Motion 
 
 For richer examples, see:
 
-- [`examples/pi_bench_demo/`](../examples/pi_bench_demo/) — **the canonical Pi reference (M4).** Real `PiHardwareController` + `SafetyGate` over the full M4 command set.
+- [`examples/pi_closed_loop_demo/`](../examples/pi_closed_loop_demo/) — **the canonical Pi reference architecture** (Step 4, [`docs/pi-reference.md`](pi-reference.md)). Full closed loop: `PiCameraSource` + `YoloVision` + `WorldState` + `GemmaMissionControl` + `MissionLoop` + `SafetyGate` + `PiHardwareController`.
+- [`examples/pi_bench_demo/`](../examples/pi_bench_demo/) — bench-only sub-path (M4). `PiHardwareController` + `SafetyGate`, no perception or mission control. Useful for debugging GPIO in isolation.
+- [`examples/pi_camera_demo/`](../examples/pi_camera_demo/) — perception-only sub-path (Step 1). `PiCameraSource` + `YoloVision`, no Telegram or hardware. Useful for debugging perception in isolation.
 - [`examples/mock_drone/`](../examples/mock_drone/) — no hardware required, uses `MockHardwareController` for `arm`/`disarm`/`move`.
 - [`examples/pipe_check/`](../examples/pipe_check/) — smallest end-to-end Pi check (M0); LED only.
 
@@ -227,6 +233,9 @@ You should rarely need to mock `python-telegram-bot` itself.
 
 ## Where to read next
 
+- **Pi reference architecture (Step 4 lock):** [docs/pi-reference.md](pi-reference.md)
+- Closed-loop architecture (Step 2): [docs/pi-closed-loop.md](pi-closed-loop.md)
+- Environmental failure runbook (Step 3): [docs/pi-failure-modes.md](pi-failure-modes.md)
 - Pi hardware (controller, gate, bench flow): [docs/pi-hardware.md](pi-hardware.md)
 - Wire format: [docs/protocol.md](protocol.md)
 - Why things are the way they are: [docs/decisions.md](decisions.md)

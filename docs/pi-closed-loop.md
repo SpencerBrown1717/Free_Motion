@@ -1,8 +1,10 @@
 # Pi closed loop (Step 2)
 
-The canonical end-to-end Free Motion device on Raspberry Pi. This page is the source of truth for **how every shipped piece composes into one runtime** — `pi_bench_demo` is the bench-only runtime; `pi_camera_demo` is the perception-only runtime; **this** is the full thing.
+The canonical end-to-end Free Motion device on Raspberry Pi, at the architecture level. **How every shipped piece composes into one runtime** — `pi_bench_demo` is the bench-only sub-path; `pi_camera_demo` is the perception-only sub-path; **this** is the full thing.
 
-> **Status.** Step 2 of the Pi-first lockdown plan. The reference example is `examples/pi_closed_loop_demo/`; the loop primitive is `freemotion.agent.MissionLoop`. The architecture is locked at the v1 surface described here. Step 3 (failure hardening) and Step 4 (reference architecture lock) build on top.
+> **Status.** Step 2 of the Pi-first lockdown plan. The reference example is `examples/pi_closed_loop_demo/`; the loop primitive is `freemotion.agent.MissionLoop`. Step 3 (failure hardening, [`docs/pi-failure-modes.md`](pi-failure-modes.md)) and Step 4 (reference architecture lock, [`docs/pi-reference.md`](pi-reference.md)) build on top.
+
+> **Looking for the locked contract** (frozen command surface, frozen env-var contract, frozen safety/status contracts, M5 port target)? That's in [`docs/pi-reference.md`](pi-reference.md). This page is the architectural reference; that page is the lock.
 
 ## Architecture at a glance
 
@@ -215,8 +217,8 @@ If the operator wants to abort instantly (not via Telegram): SIGINT or SIGTERM t
 
 ## Where to go next
 
-- Step 3: real-world failure-mode hardening — the failures outside the runtime (camera unplugged mid-mission, network drop, OS suspend, GPIO oops) — currently in progress on the roadmap.
-- Step 4: turn this doc into the canonical reference architecture before any Jetson / ESP32 / Arduino work begins.
-- Step 5: a single named, repeatable benchmark task that becomes the gate for Jetson.
+- **Step 3** (shipped): real-world failure-mode hardening — stale-world refusal, degraded summary, hung-tick handling, ordered graceful shutdown. Operator runbook: [docs/pi-failure-modes.md](pi-failure-modes.md).
+- **Step 4** (shipped): canonical Pi reference architecture lock — supported command surface, hardware path, model path, env-var contract, safety contract, status contract, M5 Jetson port target. The lock: [docs/pi-reference.md](pi-reference.md).
+- **Step 5** (next): a single named, repeatable benchmark task that becomes the gate for M5 Jetson work.
 
-[docs/decisions.md](decisions.md) ADR-0010 records why the loop is its own object, why it only dispatches MOVE, why `mission_start` is refused in `dry_run`, and how the loop-vs-router circular wiring is resolved.
+[docs/decisions.md](decisions.md): ADR-0010 records why the loop is its own object, why it only dispatches MOVE, why `mission_start` is refused in `dry_run`, and how the loop-vs-router circular wiring is resolved. ADR-0011 records the Step 3 hardening rationale; ADR-0012 records the Step 4 reference-architecture lock.

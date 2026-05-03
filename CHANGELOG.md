@@ -4,6 +4,31 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added (Step 4 — Pi reference architecture lock: one canonical Pi path, frozen surfaces, M5 = "same contract, different hardware")
+
+- **`docs/pi-reference.md`** — the single source of truth for what a Free Motion device on a Pi *is*. Locks ten surfaces in one document:
+  - **Canonical Pi path:** `examples/pi_closed_loop_demo/` is named explicitly. `pi_bench_demo` and `pi_camera_demo` are sub-paths used to debug pieces in isolation, not "alternative main paths."
+  - **Command surface (frozen):** the eight commands `/ping /capabilities /status /arm /disarm /move /mission_start /stop`. Anything else needs a protocol bump per ADR-0002. `/led_on` and `/led_off` are explicitly out of scope on the reference path. Loop dispatch is restricted to MOVE only.
+  - **Hardware path (frozen):** Pi 4/5 (Pi 3 with caveats); Bookworm or newer; `RPi.GPIO` BCM mode; `armed_pin = 27`, `moving_pin = 22`; Pi camera via `picamera2` / libcamera; resolution `(640, 480)` default; cleanup ordering mission_loop → controller → cam → inner_cleanup. I²C/SPI/UART/PWM/multi-camera/external GPS or IMU explicitly out of scope.
+  - **Model path (frozen):** `PiCameraSource → YoloVision → WorldState → GemmaMissionControl → SafetyGate → PiHardwareController`. Default models (`yolov8n.pt`, `gemma-2-2b-it`) and override surfaces named. Fallback asymmetry (camera/vision required → exit 2/3; mission/hardware fall back to mock) documented.
+  - **Env-var contract (frozen):** five tiers — required (`TELEGRAM_BOT_TOKEN` only); strongly recommended; optional backend selection; optional pin/metadata overrides; demo-only (read in the demo, not `Config`); and constructor-only tuning knobs (deliberately not env-driven).
+  - **Safety contract (frozen):** twelve numbered guarantees spanning the hardware tier (1–5) and the loop tier (6–12). Each guarantee maps to code and tests.
+  - **Status contract (frozen):** `controller` and `mission_loop` telemetry shapes pinned; the human-readable mission line format (`mission: <state> [DEGRADED: ...] [stale world: ...] [(intent='...')]`) is locked.
+  - **Failure model (frozen):** points to `docs/pi-failure-modes.md`; locks the failure list as part of the reference architecture so M5 ports know each failure must have an analog on the new platform.
+  - **Documentation alignment table:** every doc that tells the same story is enumerated; the closed-loop demo source and `pi-reference.md` are the source-of-truth pair.
+  - **M5 Jetson port target:** "same contract, different hardware." Explicit must-keep list (protocol, commands, world state shape, mission decision shape, safety semantics, status semantics, `/stop` ordering, failure model) and allowed-to-differ list (controller adapter, camera adapter, hardware factory branch, model tuning, systemd unit, OS prep doc). M5 Phase 2 (ESP32) and Phase 3 (Arduino) are deliberately not locked here.
+- **ADR-0012** — locks the rationale: why one canonical demo, why eight commands, why the hardware/model paths are bench-only, why the env-var contract has constructor-only knobs, why the failure model is part of the lock, why M5 Phase 1 is "same contract, different hardware," why doc alignment is part of the lock not an afterthought, why Step 4 ships zero new code.
+- **Doc alignment audit** across `README.md`, `GETTING_STARTED.md`, `docs/pi-runtime.md`, `docs/pi-hardware.md`, `docs/pi-camera.md`, `docs/pi-closed-loop.md`, `docs/pi-failure-modes.md`, `docs/models.md`, `examples/pi_closed_loop_demo/README.md`, `ROADMAP.md`, `CHANGELOG.md`. Stale "Step 4 will lock", "the canonical Pi reference (M4)", and "post-M4 priority" language removed. Every doc points at `pi-reference.md` for the locked contract.
+- **`GETTING_STARTED.md`** — added Path C (Pi closed-loop, the canonical reference). Path A (laptop) and Path B (bench-only) framing kept; safety-guarantees section expanded from four contracts to six to surface the loop-level guarantees.
+- **`docs/pi-runtime.md`** — Config env-var table now includes `FREEMOTION_VISION_BACKEND` and `FREEMOTION_MISSION_BACKEND` (previously missing). Stale "the canonical Pi reference (M4)" replaced with a three-tier example list (closed-loop is canonical; bench and camera are sub-paths).
+- **`docs/pi-hardware.md`** — "What's still mocked" table replaced with "What's optional vs. mocked" reflecting that YoloVision, GemmaMissionControl, PiCameraSource, and the closed loop are all shipped. "What comes next" updated to the Step 5 → M5 Phase 1 sequence. Examples table now includes `pi_camera_demo` and `pi_closed_loop_demo`.
+
+**Step 4 ships zero new code.** All eight commands were already registered, all twelve safety contracts were already enforced, all telemetry keys were already exposed, all failure paths were already covered by tests. **340 tests still pass** on every push (no change vs. Step 3); no fewer, no more. The audit was the verification — every env var documented exists in code, every command listed is registered, every telemetry key documented is in `state()`, every guarantee documented is exercised by the test suite.
+
+This is **Step 4** of the Pi-first lockdown. Step 5 (the gate for M5 Jetson) is the only remaining gate:
+
+- **Step 5 — One repeatable Pi benchmark demo.** Named task, fixed sequence, fixed success criteria, short runbook. Becomes the gate for M5 Phase 1 (Jetson Nano).
+
 ### Added (Step 3 — real-world failure-mode hardening: stale-world refusal, degraded summary, hung-tick handling, ordered graceful shutdown)
 
 - **Stale-world refusal in `MissionLoop`.** New `stale_world_timeout_s` (default 5.0s) refuses to dispatch MOVE while the world is older than the timeout. `_last_perception_ts` is set only on a non-empty `VisionResult`; `world_age_s = now - max(last_perception_ts, started_at)`. When stale, the loop logs and skips (`stale_world_skips` increments) but does **not** count the skip as a `dispatch_failure` — it's a separate signal class. Recovery is automatic: a single non-empty scene resets the clock. ADR-0011 records why "act on the freshest perception or don't act at all" is the right safety floor for the LLM-driven case (Gemma cannot act on a 30s-old world).

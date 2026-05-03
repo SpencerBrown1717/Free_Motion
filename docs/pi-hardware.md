@@ -1,8 +1,10 @@
 # Pi hardware
 
-How real Free Motion runs on a Raspberry Pi today. Treat this as the canonical reference for what's real, what's mocked, and what guarantees the runtime makes about hardware actuation.
+How real Free Motion runs on a Raspberry Pi today. The canonical reference for **the hardware adapter, the safety floor, and the bench demo that wires them together** — i.e. the M4 sub-path of the larger Pi reference architecture.
 
-For the OS-level prep (flashing, SSH, virtualenv, secrets file), see [`pi-setup.md`](pi-setup.md). For the runtime layers (Config / Router / Agent / handlers), see [`pi-runtime.md`](pi-runtime.md). This doc fills the gap between them: **the hardware adapter, the safety floor, and the bench demo that wires them together.**
+> **Looking for the full Pi reference architecture?** This page covers M4 (controller + safety gate + bench demo). The full closed-loop reference — the canonical Pi path that adds camera, YOLO, world state, Gemma, and the mission loop on top — is locked in [`docs/pi-reference.md`](pi-reference.md). Read that first if you want the big picture.
+
+For the OS-level prep (flashing, SSH, virtualenv, secrets file), see [`pi-setup.md`](pi-setup.md). For the runtime layers (Config / Router / Agent / handlers), see [`pi-runtime.md`](pi-runtime.md). This doc fills the gap between them: the hardware adapter, the safety floor, and the bench demo that wires them together.
 
 ## What's real on the Pi today (M4)
 
@@ -15,14 +17,16 @@ For the OS-level prep (flashing, SSH, virtualenv, secrets file), see [`pi-setup.
 | Status path | `/status` carries hardware-backed telemetry (pin numbers, position, `last_move_ts`, `connected`, active `safety` mode) | shipped |
 | Failure replies | Hardware errors are caught at the controller; handlers return protocol-shaped `unsafe_in_mode` / `internal` replies. Agent loop never crashes on hardware faults. | shipped |
 
-## What's still mocked
+## What's optional vs. mocked
 
-| Component | Why it's mocked | Tracked under |
+| Component | Status | Where it lives |
 |---|---|---|
-| **YOLO vision** | Avoids forcing a heavy dep on every contributor; `MockVision` is the deterministic reference. | `YoloVision` issue (post-M4) |
-| **Gemma small mission control** | Same reasoning: `MockMissionControl` is the structural pattern Gemma will follow. | `GemmaMissionControl` issue (post-M4) |
-| **Higher autonomy** | The protocol returns one `MissionDecision` (one next action), not a plan tree. Multi-step plans wait for a real adapter that needs them. | post-M4 |
-| **Other hardware** | Jetson Nano, ESP32, Arduino. Same `HardwareController` Protocol; new adapter classes. | M5 |
+| **YOLO vision** | Shipped (post-M4) behind `[yolo]` extra and `FREEMOTION_VISION_BACKEND=yolo`. Mock is the default for off-Pi development. | [`freemotion/vision/yolo.py`](../freemotion/vision/yolo.py), [`docs/models.md`](models.md), [ADR-0007](decisions.md) |
+| **Gemma mission control** | Shipped (post-M4) behind `[gemma]` extra and `FREEMOTION_MISSION_BACKEND=gemma`. Mock is the default for off-Pi development. | [`freemotion/mission_control/gemma.py`](../freemotion/mission_control/gemma.py), [`docs/models.md`](models.md), [ADR-0008](decisions.md) |
+| **Pi camera (live frames)** | Shipped (Step 1) behind `[picam]` extra. Wired into `YoloVision` via the `frame_source` seam. | [`freemotion/vision/picamera.py`](../freemotion/vision/picamera.py), [`docs/pi-camera.md`](pi-camera.md), [ADR-0009](decisions.md) |
+| **Background closed loop** | Shipped (Step 2) — `MissionLoop` ties camera + YOLO + world + Gemma + dispatch into one tested primitive. Hardened in Step 3 (stale-world refusal, degraded summary, hung-tick handling). | [`freemotion/agent/mission_loop.py`](../freemotion/agent/mission_loop.py), [`docs/pi-closed-loop.md`](pi-closed-loop.md), [ADR-0010](decisions.md), [ADR-0011](decisions.md) |
+| **Higher autonomy** | Out of scope by design ([ADR-0003](decisions.md)). The protocol returns one `MissionDecision` per call, not a plan tree. | n/a |
+| **Other hardware** | M5: Jetson Nano → ESP32 → Arduino. Same `HardwareController` Protocol; new adapter classes per platform. The Pi reference path ([`docs/pi-reference.md`](pi-reference.md)) is the M5 baseline. | future |
 
 The interfaces ship before the models. See [`models.md`](models.md) for the swap path and [ADR-0003](decisions.md#adr-0003--vision-and-mission-control-interfaces--mocks-now-real-models-behind-feature-flags-later--2026-05-03).
 
@@ -184,21 +188,23 @@ These are the contracts the runtime makes about hardware actuation. Every one is
 
 [`SAFETY.md`](../SAFETY.md) is the operator-side of this story. Read it before any code can drive motors, ESCs, or props.
 
-## Comparing the four examples
+## Comparing the examples
 
 | Example | Hardware | Use it when |
 |---|---|---|
 | [`examples/local_sim_demo.py`](../examples/local_sim_demo.py) | None (mocks) | You want to see the M3 mission/vision/world loop run end-to-end. No setup, no Telegram. |
 | [`examples/mock_drone/`](../examples/mock_drone/) | None (`MockHardwareController`) | You want the full Free Motion command set on a laptop with a Telegram bot. |
 | [`examples/pipe_check/`](../examples/pipe_check/) | Pi GPIO LED only | Smallest possible end-to-end check on a Pi (M0 reference). |
-| [`examples/pi_bench_demo/`](../examples/pi_bench_demo/) | **Pi GPIO via `PiHardwareController` + `SafetyGate`** | **You're proving the runtime on real hardware (M4).** |
+| [`examples/pi_bench_demo/`](../examples/pi_bench_demo/) | Pi GPIO via `PiHardwareController` + `SafetyGate` | You're debugging the M4 hardware path in isolation, **without** perception or mission control. |
+| [`examples/pi_camera_demo/`](../examples/pi_camera_demo/) | Pi camera via `PiCameraSource` + `YoloVision` | You're debugging the perception path in isolation, **without** Telegram or hardware. |
+| [`examples/pi_closed_loop_demo/`](../examples/pi_closed_loop_demo/) | **Pi GPIO + Pi camera + YOLO + Gemma + everything** | **You're running the canonical Pi reference architecture** ([`docs/pi-reference.md`](pi-reference.md)). |
 
 ## What comes next
 
-Post-M4, in priority order:
+The canonical Pi path is locked as of Step 4 ([`docs/pi-reference.md`](pi-reference.md)). The remaining gates before M5 (Jetson):
 
-1. **`YoloVision` adapter** behind `FREEMOTION_VISION_BACKEND=yolo` and a `pip install -e .[yolo]` extra. Same `VisionBackend` Protocol; replaces `MockVision` at the boundary.
-2. **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra. Same `MissionPolicy` Protocol; replaces `MockMissionControl`.
-3. **M5 — broader hardware support** (Jetson Nano → ESP32 → Arduino). Same `HardwareController` Protocol; new adapter classes per platform.
+1. **Step 5 — One repeatable Pi benchmark demo.** A named bench task with a fixed command sequence and fixed success criteria. Becomes the gate for M5.
+2. **M5 Phase 1 — Jetson Nano.** Same contract, different hardware. New `JetsonHardwareController` and a Jetson camera adapter; `HardwareController` Protocol unchanged. The "must-keep / allowed-to-differ" list is in [`docs/pi-reference.md`](pi-reference.md) §10.
+3. **M5 Phase 2/3 — ESP32 / Arduino.** Bridge / coprocessor patterns. Lower priority than Jetson.
 
-Tracked in [`docs/issues/m2-m3.md`](issues/m2-m3.md). The interfaces stay frozen until at least one real adapter on each side ships and tells us what's missing.
+The interfaces stay frozen until at least one new platform ships and tells us what's missing.

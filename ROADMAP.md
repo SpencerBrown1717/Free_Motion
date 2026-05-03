@@ -36,7 +36,7 @@ The project is framed around six modules. Each milestone below lights one or mor
 |---|---|
 | **Transport** | Move bytes between OpenClaw and the device. Telegram first; pluggable later. (shipped, M0) |
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
-| **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2.) `MissionLoop` background closed loop (capture → infer → world → plan → MOVE) shipped Step 2; only dispatches MOVE per ADR-0010 so an LLM hallucination cannot arm or disarm the device. Step 3 hardens the loop against real-world failure: stale-world refusal, per-stage consecutive counters with `degraded` summary, hung-tick handling, ordered `graceful_shutdown`. See [ADR-0011](docs/decisions.md) and [docs/pi-failure-modes.md](docs/pi-failure-modes.md). |
+| **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2.) `MissionLoop` background closed loop (capture → infer → world → plan → MOVE) shipped Step 2; only dispatches MOVE per ADR-0010. Step 3 hardens the loop against real-world failure: stale-world refusal, per-stage consecutive counters with `degraded` summary, hung-tick handling, ordered `graceful_shutdown` (ADR-0011, [docs/pi-failure-modes.md](docs/pi-failure-modes.md)). Step 4 locks the canonical Pi reference architecture as the M5 baseline (ADR-0012, [docs/pi-reference.md](docs/pi-reference.md)). |
 | **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3); `GemmaMissionControl` shipped post-M4 behind `[gemma]` extra and `FREEMOTION_MISSION_BACKEND=gemma`. |
 | **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` (M3) + `YoloVision` (post-M4, behind `[yolo]` extra and `FREEMOTION_VISION_BACKEND=yolo`) + `PiCameraSource` live frame producer (Step 1, behind `[picam]` extra). |
 | **World state** | Shared "what's true now" — `WorldStateSnapshot` + `WorldState` (M3, shipped). |
@@ -156,19 +156,19 @@ What did **not** ship under M4 (deliberately narrow):
 
 ### M5 — Expand hardware support
 
-Goal: grow beyond Pi without losing focus. Priority unchanged: Jetson Nano → ESP32 → Arduino.
+Goal: grow beyond Pi **without changing the contract**. Priority unchanged: Jetson Nano → ESP32 → Arduino. The Pi reference architecture ([`docs/pi-reference.md`](docs/pi-reference.md), Step 4 lock) is the M5 baseline — every M5 port keeps the protocol, command surface, world-state shape, mission-decision shape, safety semantics, status semantics, and failure model identical, and only differs on the hardware-specific seams listed in §10 of that doc.
 
 What gets built:
 
-1. **Hardware abstraction** — common interface: `init`, `status`, `execute`, `stop`.
-2. **Jetson Nano** support (heavier on-device vision).
-3. **ESP32 bridge** (sensors, peripherals, UART/SPI to a heavier host).
-4. **Arduino bridge** (simple actuators, low-level timing).
+1. **Phase 1 — Jetson Nano** (heavier on-device vision). New `JetsonHardwareController`, new Jetson camera adapter, new factory branch. Existing `HardwareController` / `VisionBackend` Protocols unchanged.
+2. **Phase 2 — ESP32 bridge** (sensors, peripherals, UART/SPI to a heavier host).
+3. **Phase 3 — Arduino bridge** (simple actuators, low-level timing).
 
-Deliverables:
+Deliverables (per phase, mirroring the Pi structure):
 
-- `freemotion/hardware/`
-- `docs/hardware.md`
+- `freemotion/hardware/<platform>.py` — controller adapter
+- `examples/<platform>_closed_loop_demo/` — closed-loop reference
+- `docs/<platform>-reference.md` — Step-4-style lock for that platform
 - Support matrix in the README
 
 ## What to build next, in exact order
@@ -191,19 +191,20 @@ Past work (shipped, post-M4):
 11. ~~`PiCameraSource` live-camera adapter + `examples/pi_camera_demo/` standalone demo.~~ Step 1 of the Pi-first lockdown. See ADR-0009 in [`docs/decisions.md`](docs/decisions.md).
 12. ~~**Step 2 — Pi full closed loop.** `MissionLoop` (background `capture → infer → world → plan → MOVE`) + `examples/pi_closed_loop_demo/` (Telegram → live YOLO → `WorldState` → Gemma → bench-safe hardware action → `/status`). Loop only ever dispatches MOVE (ADR-0010); ARM/DISARM/STOP stay operator-driven through Telegram. `/mission_start` is refused in `dry_run`; `/stop` halts the loop *and* drops both pins LOW unconditionally. Camera/YOLO/Gemma failures all degrade to idle without crashing the loop. See [ADR-0010](docs/decisions.md) and [docs/pi-closed-loop.md](docs/pi-closed-loop.md).~~
 13. ~~**Step 3 — Real-world failure-mode hardening.** Survivability over capability. Stale-world timeout refuses MOVE on outdated perception (Gemma cannot act on a 30s-old world). Per-stage consecutive counters drive a `degraded` flag with a human-readable reason in `/status`; recovery is automatic when the failing stage stops failing. Hung-`mission.plan()` no longer leaks zombie threads — `stop()` preserves `_thread` so a fresh `start()` refuses, and `start()` reaps the dead orphan when the worker exits. `graceful_shutdown(...)` runs the demo teardown in a tested, ordered, exception-tolerant sequence. Every failure (camera unplugged, vision drop, mission hang, repeated dispatch fail, SIGTERM, restart) is contracted in [docs/pi-failure-modes.md](docs/pi-failure-modes.md) and covered by 31 new tests. See [ADR-0011](docs/decisions.md).~~
+14. ~~**Step 4 — Pi reference architecture lock.** [`docs/pi-reference.md`](docs/pi-reference.md) is the single source of truth: canonical Pi path is `examples/pi_closed_loop_demo/`; supported command surface is the eight commands `/ping /capabilities /status /arm /disarm /move /mission_start /stop` (frozen — anything else needs a protocol bump per ADR-0002); hardware path is BCM 27 / 22 indicator pins via `PiHardwareController` and Pi camera via `PiCameraSource` (frozen); model path is `PiCameraSource → YoloVision → WorldState → GemmaMissionControl → SafetyGate → PiHardwareController` (frozen); env-var contract is locked across required / recommended / optional / demo-only / constructor-only knobs (every variable maps to a real code path); safety contract spells out twelve numbered guarantees; status contract pins the `controller` and `mission_loop` telemetry shape; failure model points to [`docs/pi-failure-modes.md`](docs/pi-failure-modes.md). M5 Jetson port target is **same contract, different hardware** — the must-keep list and allowed-to-differ list are explicit. See [ADR-0012](docs/decisions.md).~~
 
-Next, in priority order — **Pi-first lockdown** (Jetson is gated on these landing):
+Next, in priority order — **Pi-first lockdown** (M5 Jetson is gated on this landing):
 
-14. **Step 4 — Pi reference architecture lock.** One canonical Pi stack doc (`docs/pi-reference.md` or extension of [docs/pi-closed-loop.md](docs/pi-closed-loop.md)) listing the supported command set, hardware path, model path, bench-safety behavior, and full env-var set. Docs match code exactly. The Pi path becomes copy-able to Jetson.
-15. **Step 5 — One repeatable Pi benchmark demo.** A named bench task (e.g. `pi_follow_bench`) with a fixed command sequence, fixed success criteria, and a short operator runbook. This demo becomes the **gate for Jetson work**.
+15. **Step 5 — One repeatable Pi benchmark demo.** A named bench task (e.g. `pi_follow_bench`) with a fixed command sequence, fixed success criteria, and a short operator runbook. Becomes the **gate for M5 Jetson work**.
 
-Then, only after Steps 4–5 are green:
+Then, only after Step 5 is green:
 
-16. **Jetson Nano port** (M5). Same `HardwareController` Protocol + same vision/mission seams; new hardware adapter; same Pi reference architecture, copied. Heavier on-device YOLO/Gemma unlocks once the port is real.
-17. **ESP32 / Arduino bridges** (M5). Sensor / actuator coprocessors over UART/SPI to a heavier host.
-18. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.
+16. **M5 Phase 1 — Jetson Nano port.** Same contract, different hardware. The "must remain identical" surfaces (protocol, command set, world state shape, mission decision shape, safety semantics, status semantics, `/stop` ordering, failure model) are listed in [`docs/pi-reference.md`](docs/pi-reference.md) §10. The "allowed to differ" surfaces (the controller adapter, the camera adapter, the hardware factory, model tuning, systemd unit, OS prep doc) are also there. Acceptance is `examples/jetson_closed_loop_demo/` running the canonical command set against real Jetson hardware while every contract in [docs/pi-reference.md](docs/pi-reference.md) §6 holds.
+17. **M5 Phase 2 — ESP32.** Sensor / actuator coprocessor pattern over UART/SPI to a heavier host. Constraint set defined when this ships.
+18. **M5 Phase 3 — Arduino.** Simple actuators, low-level timing. Constraint set defined when this ships.
+19. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.
 
-Move-to-Jetson gate: **A Raspberry Pi can receive a Telegram command, run live YOLO, update world state, get one Gemma decision, execute one bench-safe action, and report status back reliably — and survive the real world.** Step 2 made the path real on the bench; Step 3 hardened it against environmental failure ([docs/pi-failure-modes.md](docs/pi-failure-modes.md)); Steps 4–5 lock the reference architecture and prove it on a repeatable benchmark. Until Steps 4 and 5 are green, no Jetson work.
+Move-to-M5 gate: **A Raspberry Pi can receive a Telegram command, run live YOLO, update world state, get one Gemma decision, execute one bench-safe action, and report status back reliably — and survive the real world — and a contributor can stand up the same architecture on Jetson without guessing because the contract is locked.** Step 2 made the path real on the bench; Step 3 hardened it against environmental failure ([docs/pi-failure-modes.md](docs/pi-failure-modes.md)); Step 4 locked the reference architecture and the Jetson port target ([docs/pi-reference.md](docs/pi-reference.md)); Step 5 will prove it on a repeatable benchmark. Until Step 5 is green, no M5 work.
 
 ## What success looks like
 
