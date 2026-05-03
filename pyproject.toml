@@ -19,6 +19,9 @@ dependencies = [
 dev = [
   "pytest>=8",
 ]
+yolo = [
+  "ultralytics>=8.0,<9",
+]
 
 [project.urls]
 Homepage = "https://www.freemotion.tech/"

@@ -137,3 +137,30 @@ def test_from_env_ignores_bad_pi_pin_values() -> None:
     )
     assert cfg.pi_armed_pin is None
     assert cfg.pi_moving_pin is None
+
+
+def test_from_env_default_vision_backend_is_mock() -> None:
+    cfg = Config.from_env(env={"TELEGRAM_BOT_TOKEN": "abc"})
+    assert cfg.vision_backend == "mock"
+
+
+def test_from_env_parses_vision_backend_yolo() -> None:
+    cfg = Config.from_env(
+        env={
+            "TELEGRAM_BOT_TOKEN": "abc",
+            "FREEMOTION_VISION_BACKEND": "YOLO",
+        }
+    )
+    assert cfg.vision_backend == "yolo"
+
+
+def test_from_env_unknown_vision_backend_falls_back_with_warning(caplog) -> None:
+    with caplog.at_level("WARNING", logger="freemotion.config"):
+        cfg = Config.from_env(
+            env={
+                "TELEGRAM_BOT_TOKEN": "abc",
+                "FREEMOTION_VISION_BACKEND": "midjourney",
+            }
+        )
+    assert cfg.vision_backend == "mock"
+    assert any("midjourney" in rec.message for rec in caplog.records)

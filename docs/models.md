@@ -50,15 +50,54 @@ MockVision(scripted=[r1, r2, r3])         # cycles through r1 -> r2 -> r3 -> r1 
 
 Deterministic. Drives [`examples/local_sim_demo.py`](../examples/local_sim_demo.py) and the test suite.
 
-### Real (planned)
+### Real — `YoloVision` (shipped, post-M4)
 
-`freemotion/vision/yolo.py` will wrap `ultralytics` (or equivalent) with the same `VisionBackend` interface. v1 scope is intentionally narrow:
+`freemotion/vision/yolo.py` wraps `ultralytics` YOLO with the same `VisionBackend` interface. v1 scope, locked by [ADR-0007](decisions.md#adr-0007--yolovision-v1-ultralytics-backed-person-only-callable-frame-source-corner-based-bbox--2026-05-03):
 
-- Person detection
-- A small set of obstacle classes
-- Confidence + normalized bbox
+- **Person detection by default** (`classes=frozenset({"person"})`; override with `classes=[...]` or `classes=[]` for every label).
+- **One model, one threshold:** `yolov8n.pt` (~6 MB nano) and confidence `0.25`. Both are constructor args.
+- **Frame source is a caller-injected callable.** The backend does not own the camera. Plug in `cv2.VideoCapture`, `picamera2`, an MJPEG stream, or a directory of test frames.
+- **Lazy `ultralytics` import.** Module imports cleanly on a host without `[yolo]` installed; the backend stays offline (`available is False`, `scene()` returns empty) rather than crashing.
+- **bbox is `(x, y, w, h)` normalized 0..1, top-left corner-based.** Ultralytics's center-based `xywhn` is converted internally and clamped to the unit square.
+- **`min_interval_s` throttle** as the "cheap `scene()`" contract. Default `0.0` (no throttle).
 
-Construction is gated on a config flag (e.g. `FREEMOTION_VISION_BACKEND=yolo`). That flag does not exist yet — it lands with the adapter.
+Install and turn it on:
+
+```bash
+pip install -e .[yolo]
+export FREEMOTION_VISION_BACKEND=yolo
+```
+
+Wire by hand for any non-default knob:
+
+```python
+import cv2
+from freemotion.vision import YoloVision
+
+cap = cv2.VideoCapture(0)
+vision = YoloVision(
+    frame_source=lambda: (lambda r: r[1] if r[0] else None)(cap.read()),
+    model="yolov8n.pt",
+    classes=["person"],          # or [] to accept every label
+    confidence_threshold=0.4,
+    min_interval_s=0.1,           # cap inference at 10 Hz
+)
+
+result = vision.scene()
+for det in result.detections:
+    print(det.label, det.confidence, det.bbox)
+```
+
+Or via the factory (uses the constructor's defaults):
+
+```python
+from freemotion.config import Config
+from freemotion.vision import make_vision_from_config
+
+vision = make_vision_from_config(Config.from_env())  # YoloVision when FREEMOTION_VISION_BACKEND=yolo
+```
+
+Tests in [`tests/test_vision_yolo.py`](../tests/test_vision_yolo.py) (24 + 1 skip) cover the adapter through an injected `yolo_factory` so CI runs cleanly without `ultralytics`. The trailing test calls `pytest.importorskip("ultralytics")` so contributors with `[yolo]` installed get an extra smoke layer.
 
 ## Mission control
 

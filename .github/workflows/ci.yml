@@ -27,6 +27,7 @@ jobs:
           PYTHONPATH=examples/pipe_check python -c "import pipe_check; print('pipe_check ok')"
           PYTHONPATH=examples/pi_bench_demo python -c "import pi_bench_demo; print('pi_bench_demo ok')"
           python -c "from freemotion.hardware.pi import PiHardwareController; print('PiHardwareController ok')"
+          python -c "from freemotion.vision import YoloVision, make_vision_from_config; print('YoloVision lazy import ok')"
 
       - name: tests
         run: pytest -q tests

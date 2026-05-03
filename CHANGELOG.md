@@ -4,6 +4,30 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added (post-M4 — `YoloVision`, first real perception adapter)
+
+- **`YoloVision`** (`freemotion/vision/yolo.py`) — `VisionBackend` backed by `ultralytics` YOLO. v1 scope per ADR-0007:
+  - Person detection by default (`classes=frozenset({"person"})`); override with `classes=[...]`, or `classes=[]` to accept every label. Class ids without a name in the model fall back to their stringified id.
+  - One model, one threshold (`yolov8n.pt`, `confidence=0.25` — both constructor args, both defaults match Ultralytics's CLI).
+  - Caller-injected `frame_source: Callable[[], Any]`. The backend does not own the camera. Plug in `cv2.VideoCapture`, `picamera2`, MJPEG, or a directory of test frames without changing this file.
+  - `min_interval_s` throttle as the "cheap `scene()`" contract; default `0.0` (no throttle).
+  - bbox locked to `(x, y, w, h)` normalized 0..1, **top-left corner-based**. Ultralytics's center-based `xywhn` is converted internally and clamped to the unit square.
+  - **Lazy `ultralytics` import** inside `__init__` so the module imports cleanly on a host without the optional dep. Hardware/inference exceptions are caught: `available is False` and `scene()` returns empty rather than crash. The agent loop never sees a vision-induced crash.
+  - `yolo_factory` injection for tests: 24 of 25 yolo tests run without `ultralytics`/`torch` via `_FakeYOLO`. The 25th is a `pytest.importorskip("ultralytics")` smoke that runs only when `[yolo]` is installed.
+- **Factory** — `make_vision_from_config(config)` returns `YoloVision()` for `FREEMOTION_VISION_BACKEND=yolo`, `MockVision()` everywhere else. Unknown values warn and fall back to mock.
+- **Config** — new `vision_backend: str` field (default `"mock"`), parsed from `FREEMOTION_VISION_BACKEND`. Only `mock` and `yolo` are valid in v1; unknowns warn and fall back. 3 new config tests.
+- **`pyproject.toml`** — new `[yolo]` extra (`ultralytics>=8.0,<9`). Base install stays stdlib + `python-telegram-bot`.
+- **CI** — import smoke now also covers `from freemotion.vision import YoloVision, make_vision_from_config` to confirm the lazy-import discipline holds on a runner without `[yolo]`.
+- **Docs** — `docs/decisions.md` ADR-0007 locks the v1 design (ultralytics, lazy imports, callable frame source, person-only default, corner-based bbox, `min_interval_s` cache contract, no camera plumbing in this module). `docs/models.md` flips the Vision section from "planned" to "shipped" with install/wire/factory examples.
+
+**201 tests pass on every push** (+1 skip when `[yolo]` isn't installed). Test breakdown for the new code: 25 in `tests/test_vision_yolo.py`, +3 in `tests/test_config.py`.
+
+Next, in priority order:
+
+- **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra. Same `MissionPolicy` Protocol; `MockMissionControl` is the structural reference.
+- **Jetson Nano** (M5).
+- **ESP32 / Arduino** (M5).
+
 ### Added (M4 Phase 4 — docs polish, M4 done)
 
 - **New `docs/pi-hardware.md`** — canonical Pi architecture + bench-flow walkthrough. Covers what's real on the Pi today (controller, factory, bench demo, safety gate, status path, failure replies), what's still mocked (YOLO, Gemma, higher autonomy, broader hardware), the three-layer refusal architecture (router deny → handler safety → gate floor), the safety-mode truth table, the wiring/install/env-var/run-and-verify recipe, the four safety guarantees, the four-example comparison, and what comes next.

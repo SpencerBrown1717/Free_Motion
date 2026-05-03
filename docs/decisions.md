@@ -117,6 +117,26 @@ Each ADR has:
 
 **Status.** Locked. Wired into `examples/pi_bench_demo/`. `examples/mock_drone/` and `examples/pipe_check/` are not retrofitted: the mock has no real actuation to gate, and `pipe_check`'s LED handlers already gate on `dry_run` at the handler layer.
 
+---
+
+## ADR-0007 — YoloVision v1: ultralytics-backed, person-only, callable frame source, corner-based bbox — 2026-05-03
+
+**Context.** Post-M4, the next bottleneck is real perception. The mock vision backend has been carrying the `VisionBackend` Protocol since M3; it was always going to be replaced when one real adapter forced the contract to clarify a few things (frame source, bbox convention, scope). YOLO is the obvious candidate: well-supported, CPU-runnable (nano variants ~6 MB), wide library coverage. The pressure was to land it without (a) blowing up CI runtime with a torch download, (b) bricking the rest of the runtime when YOLO is missing, or (c) over-engineering the v1 surface before a second real adapter exists.
+
+**Decisions.**
+
+- **`ultralytics` is the YOLO library.** De facto Python YOLO; same author lineage as the original repo; CPU and GPU paths in one API. Heavy deps (`torch`, `numpy`) live behind `pip install -e .[yolo]`. Base install stays stdlib + `python-telegram-bot`. ADR-0003's "real adapters land behind config flags, not extras-by-default" precedent is preserved.
+- **`ultralytics` is imported lazily inside `__init__`.** The module imports cleanly on a host without it. If the import fails, the backend stays offline (`available is False`, `scene()` returns empty), the agent loop keeps running, and a warning is logged. Same defensive pattern as `PiHardwareController`.
+- **Frame source is a caller-injected callable.** `YoloVision(frame_source=lambda: ...)`. The backend does **not** own the camera. Two reasons: tests stay trivial (`frame_source=lambda: object()` plus a `yolo_factory` fake — no `cv2`, no `picamera2`, no real frames), and contributors can plug in `cv2.VideoCapture`, `picamera2`, MJPEG, or a directory of test images without changing this file. The `VisionBackend` Protocol's "backend manages its own input" clause is preserved at the contract level — the *callable* is the input source, owned by the backend instance.
+- **Person detection by default.** `classes=frozenset({"person"})`. The most-asked v1 use case ("follow person"); narrowing the default keeps unrelated YOLO classes (`bench`, `book`, `chair`, `dog`) out of the world-state hop without forcing every caller to filter. Override with `classes=[...]`; pass `classes=[]` to accept every label.
+- **Confidence threshold passes through to `model(..., conf=...)`.** The library does the filtering; we don't re-implement it. Clamp to `[0.0, 1.0]` defensively. v1 default is `0.25` — Ultralytics's default — so behavior matches what users see in the `yolo predict` CLI.
+- **bbox is `(x, y, w, h)` normalized 0..1, top-left corner-based.** Ultralytics returns center-based `xywhn`; we convert. Locking the convention now is cheap; locking it after a second adapter ships would mean retrofitting two backends. Corner-based wins because it's the more common downstream convention (PIL, OpenCV image crops, JSON annotation formats). Coords are clamped to `[0, 1]` so callers never see negatives from edge boxes.
+- **`min_interval_s` is the cache contract.** The `VisionBackend` Protocol says `scene()` SHOULD be cheap. v1 ships the simplest possible version: a monotonic-clock throttle that returns the cached `VisionResult` if called inside the window. Default `0.0` (no throttle). A real per-frame freshness check (e.g. compare frame hashes) is deferred until a use case demands it.
+- **No camera plumbing in this module.** `cv2`, `picamera2`, MJPEG sources, frame buffers — all live in example code. v1 keeps `freemotion/vision/yolo.py` ~200 lines and free of platform-specific I/O. When the second example ships (an `examples/yolo_follow/`-style demo), camera adapters can move into a small `freemotion/vision/sources/` if a pattern emerges.
+- **`make_vision_from_config(cfg)` mirrors `make_controller_from_config`.** Same lazy-import discipline. `FREEMOTION_VISION_BACKEND` is parsed in `Config.from_env` (only `mock` / `yolo` valid in v1; unknown values warn and fall back to `mock`).
+
+**Status.** Locked. Adapter ships under `freemotion/vision/yolo.py` with 24 CI-clean tests via fakes and one `pytest.importorskip("ultralytics")` smoke that runs only when the optional dep is installed. The `VisionBackend` Protocol stays frozen — `YoloVision` proves the contract is sufficient. A second real adapter (e.g. an ONNX-backed alternative for embedded hosts) would test that further; the interface is not yet considered final-final.
+
 ## Pending
 
 If you make an architectural call that future contributors will ask "why?" about, write a four-line ADR here. Bias toward writing them down. Reverse-engineering decisions is more expensive than recording them.

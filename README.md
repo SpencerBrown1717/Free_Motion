@@ -6,7 +6,7 @@ OpenClaw sends a command. The device sees, decides, and moves on its own.
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/SpencerBrown1717/Free_Motion/actions/workflows/ci.yml/badge.svg)](https://github.com/SpencerBrown1717/Free_Motion/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-174%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen.svg)](tests/)
 
 **Site:** [freemotion.tech](https://www.freemotion.tech/) · **Splash:** [spencerbrown1717.github.io/Free_Motion](https://spencerbrown1717.github.io/Free_Motion/) · **Roadmap:** [ROADMAP.md](ROADMAP.md)
 
@@ -49,7 +49,7 @@ You'll see five ticks of `intent → vision → mission_control → protocol →
 |---|---|---|
 | Transport | Telegram | (more transports later) |
 | Protocol | v0 (typed envelopes) | stable contract — see [`docs/protocol.md`](docs/protocol.md) |
-| Vision | `MockVision` (real: YOLO, planned) | [`VisionBackend`](freemotion/vision/interface.py) |
+| Vision | `MockVision` **or** `YoloVision` (post-M4, behind `[yolo]`) | [`VisionBackend`](freemotion/vision/interface.py) |
 | Mission control | `MockMissionControl` (real: Gemma small, planned) | [`MissionPolicy`](freemotion/mission_control/interface.py) |
 | World state | `WorldStateSnapshot` + `WorldState` (lock-protected) | [`freemotion.world`](freemotion/world/state.py) |
 | Hardware | `MockHardwareController` **and** `PiHardwareController` (M4) | [`HardwareController`](freemotion/hardware/interface.py) |
@@ -60,11 +60,11 @@ Every layer is a `Protocol` you can implement. See [`docs/models.md`](docs/model
 
 ## Current status
 
-- **Shipped:** Telegram transport (M0); protocol v0 (M1); device runtime — config + router + agent (M2); mock hardware (M2); per-command deny list (M2); vision and mission interfaces + mocks (M3 partial); world state (M3); end-to-end loop demo (M3); **Pi hardware controller, bench demo, and SafetyGate (M4)**.
-- **Mocked, not yet real:** YOLO vision adapter, Gemma small mission policy, higher autonomy (multi-step plans).
+- **Shipped:** Telegram transport (M0); protocol v0 (M1); device runtime — config + router + agent (M2); mock hardware (M2); per-command deny list (M2); vision and mission interfaces + mocks (M3 partial); world state (M3); end-to-end loop demo (M3); Pi hardware controller, bench demo, and SafetyGate (M4); **`YoloVision` real perception adapter (post-M4)**.
+- **Mocked, not yet real:** Gemma small mission policy, higher autonomy (multi-step plans).
 - **Not started:** Jetson / ESP32 / Arduino support (M5).
 
-174 tests passing on every push, including 22 covering the Pi controller (via `FakeGPIO`) and 14 covering the safety gate. The full state of play is in [`ROADMAP.md`](ROADMAP.md); open work is in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md).
+201 tests passing on every push (plus 1 skip when the optional `[yolo]` extra isn't installed): 22 cover the Pi controller (via `FakeGPIO`), 14 cover the safety gate, 24 cover `YoloVision` (via an injected `yolo_factory` fake — CI runs without `ultralytics` or `torch`). The full state of play is in [`ROADMAP.md`](ROADMAP.md).
 
 ## Repository tour
 

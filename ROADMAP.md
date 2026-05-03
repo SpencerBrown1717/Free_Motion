@@ -38,7 +38,7 @@ The project is framed around six modules. Each milestone below lights one or mor
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
 | **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2) |
 | **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3 partial); Gemma small adapter pending. |
-| **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` shipped (M3 partial); YOLO adapter pending. |
+| **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` (M3) + `YoloVision` (post-M4, behind `[yolo]` extra and `FREEMOTION_VISION_BACKEND=yolo`). |
 | **World state** | Shared "what's true now" — `WorldStateSnapshot` + `WorldState` (M3, shipped). |
 | **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` (M2) + `PiHardwareController` + `make_controller_from_config` factory shipped (M4). Jetson / ESP32 / Arduino on the M5 roadmap. |
 | **Safety** | Modes, hard stops, rate limits, watchdogs. `SafetyMode` (M1), per-command deny list (M2), `SafetyGate` controller wrapper enforcing `cfg.safety_default` as the device-level floor (M4). Rate limits / watchdogs deferred. |
@@ -184,10 +184,13 @@ Past work (shipped):
 7. ~~World state v1.~~ (M3)
 8. ~~One real hardware demo on Pi (`PiHardwareController` + `SafetyGate` + `pi_bench_demo`).~~ (M4)
 
+Past work (shipped, post-M4):
+
+9. ~~`YoloVision` adapter behind `FREEMOTION_VISION_BACKEND=yolo` and `pip install -e .[yolo]`.~~ See ADR-0007 in [`docs/decisions.md`](docs/decisions.md).
+
 Next, in priority order:
 
-9. **`YoloVision` adapter** behind `FREEMOTION_VISION_BACKEND=yolo` and a `pip install -e .[yolo]` extra. Same `VisionBackend` Protocol; `MockVision` is the structural reference. Tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md).
-10. **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra. Same `MissionPolicy` Protocol; `MockMissionControl` is the structural reference. Tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md).
+10. **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra. Same `MissionPolicy` Protocol; `MockMissionControl` is the structural reference.
 11. **Jetson Nano port** (M5). Same `HardwareController` Protocol; new adapter class + example. Heavier on-device vision unlocks once it's there.
 12. **ESP32 / Arduino bridges** (M5).
 13. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.

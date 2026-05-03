@@ -56,6 +56,27 @@ def _parse_optional_pin(raw: str, var_name: str) -> Optional[int]:
         return None
 
 
+_VALID_VISION_BACKENDS = frozenset({"mock", "yolo"})
+
+
+def _parse_vision_backend(raw: str) -> str:
+    """Parse `FREEMOTION_VISION_BACKEND`. Default and unknown both
+    fall back to `"mock"`; unknown logs a warning. The backend
+    is wired by `freemotion.vision.make_vision_from_config`."""
+    value = (raw or "").strip().lower()
+    if not value:
+        return "mock"
+    if value not in _VALID_VISION_BACKENDS:
+        LOG.warning(
+            "unknown FREEMOTION_VISION_BACKEND=%r; falling back to 'mock'. "
+            "Valid values: %s",
+            value,
+            sorted(_VALID_VISION_BACKENDS),
+        )
+        return "mock"
+    return value
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     """Free Motion device config.
@@ -74,6 +95,7 @@ class Config:
     denied_commands: FrozenSet[str] = frozenset()
     pi_armed_pin: Optional[int] = None
     pi_moving_pin: Optional[int] = None
+    vision_backend: str = "mock"
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "Config":
@@ -116,6 +138,10 @@ class Config:
             e.get("FREEMOTION_PI_MOVING_PIN", ""), "FREEMOTION_PI_MOVING_PIN"
         )
 
+        vision_backend = _parse_vision_backend(
+            e.get("FREEMOTION_VISION_BACKEND", "")
+        )
+
         enabled = _parse_features(e.get("FREEMOTION_FEATURES", ""))
 
         denied = _parse_denied_commands(e.get("FREEMOTION_DENIED_COMMANDS", ""))
@@ -137,4 +163,5 @@ class Config:
             denied_commands=denied,
             pi_armed_pin=pi_armed_pin,
             pi_moving_pin=pi_moving_pin,
+            vision_backend=vision_backend,
         )
