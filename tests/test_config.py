@@ -107,3 +107,33 @@ def test_from_env_strips_stop_from_denied_commands(caplog) -> None:
     )
     assert "stop" not in cfg.denied_commands
     assert cfg.denied_commands == frozenset({"arm", "move"})
+
+
+def test_from_env_default_pi_pins_are_none() -> None:
+    cfg = Config.from_env(env={"TELEGRAM_BOT_TOKEN": "abc"})
+    assert cfg.pi_armed_pin is None
+    assert cfg.pi_moving_pin is None
+
+
+def test_from_env_parses_pi_pins() -> None:
+    cfg = Config.from_env(
+        env={
+            "TELEGRAM_BOT_TOKEN": "abc",
+            "FREEMOTION_PI_ARMED_PIN": "23",
+            "FREEMOTION_PI_MOVING_PIN": "24",
+        }
+    )
+    assert cfg.pi_armed_pin == 23
+    assert cfg.pi_moving_pin == 24
+
+
+def test_from_env_ignores_bad_pi_pin_values() -> None:
+    cfg = Config.from_env(
+        env={
+            "TELEGRAM_BOT_TOKEN": "abc",
+            "FREEMOTION_PI_ARMED_PIN": "not-a-number",
+            "FREEMOTION_PI_MOVING_PIN": "",
+        }
+    )
+    assert cfg.pi_armed_pin is None
+    assert cfg.pi_moving_pin is None

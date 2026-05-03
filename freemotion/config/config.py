@@ -42,6 +42,20 @@ def _parse_denied_commands(raw: str) -> FrozenSet[str]:
     return frozenset(p.strip() for p in raw.split(",") if p.strip())
 
 
+def _parse_optional_pin(raw: str, var_name: str) -> Optional[int]:
+    """Parse an optional BCM pin number. Empty string and bad values
+    both return `None`; bad values log a warning so misconfiguration
+    surfaces in operator logs."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        LOG.warning("ignoring non-integer %s: %r", var_name, raw)
+        return None
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     """Free Motion device config.
@@ -58,6 +72,8 @@ class Config:
     hardware_profile: str = "host"
     enabled_features: FrozenSet[str] = frozenset()
     denied_commands: FrozenSet[str] = frozenset()
+    pi_armed_pin: Optional[int] = None
+    pi_moving_pin: Optional[int] = None
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "Config":
@@ -87,18 +103,17 @@ class Config:
             )
             safety_default = SafetyMode.DRY_RUN
 
-        led_raw = e.get("FREEMOTION_LED_PIN", "").strip()
-        led_pin: Optional[int] = None
-        if led_raw:
-            try:
-                led_pin = int(led_raw)
-            except ValueError:
-                LOG.warning(
-                    "ignoring non-integer FREEMOTION_LED_PIN: %r", led_raw
-                )
+        led_pin = _parse_optional_pin(e.get("FREEMOTION_LED_PIN", ""), "FREEMOTION_LED_PIN")
 
         hardware_profile = (
             e.get("FREEMOTION_HARDWARE", "").strip() or "host"
+        )
+
+        pi_armed_pin = _parse_optional_pin(
+            e.get("FREEMOTION_PI_ARMED_PIN", ""), "FREEMOTION_PI_ARMED_PIN"
+        )
+        pi_moving_pin = _parse_optional_pin(
+            e.get("FREEMOTION_PI_MOVING_PIN", ""), "FREEMOTION_PI_MOVING_PIN"
         )
 
         enabled = _parse_features(e.get("FREEMOTION_FEATURES", ""))
@@ -120,4 +135,6 @@ class Config:
             hardware_profile=hardware_profile,
             enabled_features=enabled,
             denied_commands=denied,
+            pi_armed_pin=pi_armed_pin,
+            pi_moving_pin=pi_moving_pin,
         )

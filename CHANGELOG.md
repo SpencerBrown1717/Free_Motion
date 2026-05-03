@@ -4,9 +4,21 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
-Tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md):
+### Added (M4 Phase 1 — first real hardware proof, controller foundation)
 
-- `PiHardwareController` (M2).
+- **`PiHardwareController`** (`freemotion/hardware/pi.py`) — bench-safe `HardwareController` for Raspberry Pi. Each state transition flips a real GPIO pin: `armed_pin` HIGH while armed, `moving_pin` pulsed HIGH for `move_pulse_s` on each successful `move()`. `RPi.GPIO` is imported lazily; tests inject a `FakeGPIO` adapter via the `gpio` arg. Hardware exceptions are caught and logged: `arm()` / `move()` return `False` on failure, `stop()` always swallows. Per ADR-0004, `stop()` does not acquire the controller lock — it must succeed even mid-`move()`.
+- **Hardware factory** — `make_controller_from_config(config)` in `freemotion.hardware` picks `PiHardwareController` for `FREEMOTION_HARDWARE=pi` (lazy import, so non-Pi hosts stay clean) and `MockHardwareController` everywhere else. Unknown profiles log a warning.
+- **Config** — new `pi_armed_pin` / `pi_moving_pin` fields parsed from `FREEMOTION_PI_ARMED_PIN` / `FREEMOTION_PI_MOVING_PIN`. Empty / non-integer values fall back to the controller's defaults (BCM 27 / 22).
+- **Tests** — `tests/test_pi.py` (22 tests) covers the controller via `FakeGPIO`: protocol satisfaction, GPIO setup, arm/disarm/stop/move happy paths, position accumulation, non-numeric `move` args, hardware failure paths (`arm` and `move` return `False`, `stop` swallows), offline-mode behavior when setup fails, `cleanup` releases pins, and the factory monkeypatches `RPi.GPIO` to construct a real `PiHardwareController` on a non-Pi host. CI runs without `RPi.GPIO`.
+
+Still tracked under M4 in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md):
+
+- Phase 2 — `examples/pi_bench_demo/` end-to-end Telegram path on a real Pi.
+- Phase 3 — Safety-mode enforcement on real hardware (`dry_run` non-actuating, `bench` allowed primitive, `stop` exempt).
+- Phase 4 — Pi setup/runtime docs, README + ROADMAP refresh.
+
+Still tracked from M2/M3:
+
 - `YoloVision` adapter behind `FREEMOTION_VISION_BACKEND=yolo` (M3).
 - `GemmaMissionControl` adapter behind `FREEMOTION_MISSION_BACKEND=gemma` (M3).
 
