@@ -40,8 +40,8 @@ The project is framed around six modules. Each milestone below lights one or mor
 | **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3 partial); Gemma small adapter pending. |
 | **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` shipped (M3 partial); YOLO adapter pending. |
 | **World state** | Shared "what's true now" — `WorldStateSnapshot` + `WorldState` (M3, shipped). |
-| **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` shipped (M2). `PiHardwareController` pending. |
-| **Safety** | Modes, hard stops, rate limits, watchdogs. Cuts across every other module. |
+| **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` (M2) + `PiHardwareController` + `make_controller_from_config` factory shipped (M4). Jetson / ESP32 / Arduino on the M5 roadmap. |
+| **Safety** | Modes, hard stops, rate limits, watchdogs. `SafetyMode` (M1), per-command deny list (M2), `SafetyGate` controller wrapper enforcing `cfg.safety_default` as the device-level floor (M4). Rate limits / watchdogs deferred. |
 
 ## Milestones
 
@@ -124,28 +124,35 @@ Still to do under M3 (tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md))
 - **`YoloVision` adapter** behind `FREEMOTION_VISION_BACKEND=yolo` and a `pip install -e .[yolo]` extra.
 - **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra.
 
-### M4 — One real hardware demo (gated)
+### M4 — First real hardware proof (shipped)
 
-Goal: prove Free Motion does something physical. **Pick exactly one.**
+Goal: ship one safe, repeatable real-hardware demo where Free Motion drives a Raspberry Pi end-to-end. **Bench rig only** — GPIO indicator pins, no motor drivers, no propellers, no actuated platform. Real motion lands later behind explicit safety modes.
 
-Candidates:
+What's now in the repo:
 
-1. LED + motor state-machine demo
-2. Rover: forward, stop, status
-3. Drone in bench mode: arm / disarm only, no flight
-4. Person-follow simulation
+1. **`PiHardwareController`** ([`freemotion/hardware/pi.py`](freemotion/hardware/pi.py)) — bench-safe `HardwareController` for Pi GPIO. `armed_pin` HIGH while armed (default BCM 27); `moving_pin` pulsed HIGH for ~100 ms on each successful `move()` (default BCM 22). `RPi.GPIO` is imported lazily; tests inject a `FakeGPIO`. Hardware exceptions are caught — `arm`/`move` return `False`, `stop` always swallows. The agent loop never crashes on hardware faults.
+2. **`make_controller_from_config(cfg)`** factory — selects `PiHardwareController` for `FREEMOTION_HARDWARE=pi` (lazy import, so non-Pi hosts stay clean) and `MockHardwareController` everywhere else. Unknown profiles log a warning.
+3. **`SafetyGate`** ([`freemotion/hardware/safety.py`](freemotion/hardware/safety.py), ADR-0006) — `HardwareController` wrapper that fixes `cfg.safety_default` at the controller boundary. In `dry_run`, `arm()` and `move()` refuse without ever calling the inner controller; `disarm()` and `stop()` always pass through. **Device default is the floor:** a per-command `safety=bench` against a `dry_run` device is refused. `state()` exposes the active safety mode under `controller.safety` so `/status` carries it.
+4. **`examples/pi_bench_demo/`** ([README](examples/pi_bench_demo/README.md), [systemd unit](examples/pi_bench_demo/systemd/freemotion-pi-bench-demo.service)) — first real hardware Free Motion device. Wires `Config.from_env` → `make_controller_from_config` → `SafetyGate` → `Router` → `Agent` → Telegram. Registers exactly seven commands: `/ping`, `/capabilities`, `/status`, `/arm`, `/move`, `/stop`, `/disarm`. Falls back to mock when `FREEMOTION_HARDWARE != pi`.
+5. **`docs/pi-hardware.md`** — canonical Pi architecture + bench-flow walkthrough: what's real, what's mocked, the safety contract, and how to graduate from `local_sim_demo` → `mock_drone` → `pipe_check` → `pi_bench_demo`.
+6. **Two new ADRs:** [ADR-0004](docs/decisions.md#adr-0004--per-command-allowdeny-allow-by-default-explicit-deny-list-stop-always-exempt--2026-05-03) (deny list, `stop` exempt) and [ADR-0006](docs/decisions.md#adr-0006--safetygate-enforce-safetymode-at-the-hardware-boundary-dry_run-is-the-floor--2026-05-03) (gate semantics).
+7. **CI** — import smoke covers `pi_bench_demo` and `PiHardwareController`'s lazy-import path on a non-Pi GitHub runner.
 
-Hard requirements:
+**M4 contracts (every one is covered by tests):**
 
-- Full [SAFETY.md](SAFETY.md) sign-off for the chosen platform.
-- Every code path that can move hardware respects `safety` mode and the unconditional `stop`.
-- One short demo clip linked from the README.
+- `dry_run` cannot actuate `arm` or `move`. The handler refuses on `cmd.safety`; the gate refuses on `cfg.safety_default`. Verified with a call counter on a wrapped controller.
+- `bench` allows the bench-safe primitive (GPIO output to indicator pins). The Pi controller does not expose motor primitives — that's a deliberate M5+ boundary.
+- `stop` always passes through. Exempt from the deny list (ADR-0004) and from the SafetyGate (ADR-0006). `PiHardwareController.stop()` does not acquire the controller lock, so it succeeds mid-`move()`.
+- Hardware unavailable returns a protocol-shaped reply. Missing `RPi.GPIO`, failed setup, runtime GPIO errors all surface as `unsafe_in_mode`. Agent loop keeps running.
 
-Deliverables:
+174 tests pass on every push; 22 cover the Pi controller (via `FakeGPIO`), 14 cover the safety gate.
 
-- `examples/<chosen>_demo/` with hardware list, wiring, run command, expected output
-- `SAFETY.md` updates specific to the chosen platform
-- Demo clip / GIF in [README.md](README.md)
+What did **not** ship under M4 (deliberately narrow):
+
+- Motor or ESC drivers (M5+).
+- Free flight or uncontrolled motion (M5+).
+- Per-platform support beyond the Pi (Jetson / ESP32 / Arduino — M5).
+- YOLO / Gemma adapters (post-M4 priorities).
 
 ### M5 — Expand hardware support
 
@@ -166,15 +173,24 @@ Deliverables:
 
 ## What to build next, in exact order
 
-1. [docs/protocol.md](docs/protocol.md) — contract first, code follows.
-2. `freemotion/protocol/` — typed envelopes + tests.
-3. `freemotion/agent/` on Pi (start of M2).
-4. `/status` and `/capabilities` as routed commands through the agent.
-5. Mission control stub (M3).
-6. Vision stub (M3).
-7. One real hardware demo (M4).
-8. SAFETY.md updates for that demo.
-9. Jetson Nano port (M5).
+Past work (shipped):
+
+1. ~~`docs/protocol.md` — contract first, code follows.~~ (M1)
+2. ~~`freemotion/protocol/` — typed envelopes + tests.~~ (M1)
+3. ~~`freemotion/agent/` on Pi.~~ (M2)
+4. ~~`/status` and `/capabilities` as routed commands.~~ (M2)
+5. ~~Mission control stub.~~ (M3)
+6. ~~Vision stub.~~ (M3)
+7. ~~World state v1.~~ (M3)
+8. ~~One real hardware demo on Pi (`PiHardwareController` + `SafetyGate` + `pi_bench_demo`).~~ (M4)
+
+Next, in priority order:
+
+9. **`YoloVision` adapter** behind `FREEMOTION_VISION_BACKEND=yolo` and a `pip install -e .[yolo]` extra. Same `VisionBackend` Protocol; `MockVision` is the structural reference. Tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md).
+10. **`GemmaMissionControl` adapter** behind `FREEMOTION_MISSION_BACKEND=gemma` and a `pip install -e .[gemma]` extra. Same `MissionPolicy` Protocol; `MockMissionControl` is the structural reference. Tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md).
+11. **Jetson Nano port** (M5). Same `HardwareController` Protocol; new adapter class + example. Heavier on-device vision unlocks once it's there.
+12. **ESP32 / Arduino bridges** (M5).
+13. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.
 
 ## What success looks like
 

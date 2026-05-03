@@ -4,6 +4,16 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added (M4 Phase 4 — docs polish, M4 done)
+
+- **New `docs/pi-hardware.md`** — canonical Pi architecture + bench-flow walkthrough. Covers what's real on the Pi today (controller, factory, bench demo, safety gate, status path, failure replies), what's still mocked (YOLO, Gemma, higher autonomy, broader hardware), the three-layer refusal architecture (router deny → handler safety → gate floor), the safety-mode truth table, the wiring/install/env-var/run-and-verify recipe, the four safety guarantees, the four-example comparison, and what comes next.
+- **`docs/pi-runtime.md`** refreshed: env-var table now lists `pi_armed_pin` / `pi_moving_pin`; "Hardware: when you actually have some" section now documents `PiHardwareController`, `make_controller_from_config`, and the `SafetyGate(make_controller_from_config(cfg), cfg.safety_default)` wiring pattern; example list reordered with `pi_bench_demo` as the canonical Pi reference; pitfalls section calls out the gate.
+- **`GETTING_STARTED.md`** rewritten around two paths: laptop-no-hardware (60-second `local_sim_demo.py` + `mock_drone` pointer) and real-Pi-bench-rig (full M4 recipe with wiring, env vars, command tour, expected hardware effects), plus a four-point safety-guarantees summary.
+- **`README.md`** refreshed: test badge bumped to 174; CTA now links the Pi graduation path; stack table adds a Safety row and marks `PiHardwareController` real; current-status section moves Pi controller out of "mocked" and into "shipped"; repo tour adds `pi_bench_demo/` and `pi-hardware.md`; safety section adds the SafetyGate floor; contributing paths reframed around YOLO/Gemma adapters and the `HardwareController` Protocol.
+- **`ROADMAP.md`** refreshed: Hardware adapter and Safety rows in the modules table updated; the M4 section is now a "shipped" entry covering Phases 1–4 with all four contracts called out and tests cited; "what to build next" reordered with M0–M4 struck through and YOLO / Gemma / Jetson / ESP32 / Arduino / safety extras lined up after.
+
+**M4 done.** A contributor can now read [`docs/pi-hardware.md`](docs/pi-hardware.md) to understand the Pi bench architecture, [`docs/pi-setup.md`](docs/pi-setup.md) + [`GETTING_STARTED.md`](GETTING_STARTED.md) to set up the Pi, [`examples/pi_bench_demo/README.md`](examples/pi_bench_demo/README.md) to run the bench demo, and the four safety guarantees (in `pi-hardware.md`, `GETTING_STARTED.md`, and `README.md`) to know exactly what is safe vs. not safe. Next priorities are `YoloVision`, `GemmaMissionControl`, then M5 broader hardware.
+
 ### Added (M4 Phase 3 — safety-mode enforcement on real hardware)
 
 - **`SafetyGate`** (`freemotion/hardware/safety.py`) — `HardwareController` wrapper that enforces a fixed `SafetyMode` at the controller boundary. In `dry_run`, `arm()` and `move()` refuse without ever calling the inner controller; `disarm()` and `stop()` always pass through (depowering is always safe; `stop` is the unconditional `ADR-0004` hard-stop). In `bench` / `live`, every method passes through. `state()` is decorated with the active `safety` field so `/status` exposes the runtime's effective safety floor without wiring `Config` into the status handler.

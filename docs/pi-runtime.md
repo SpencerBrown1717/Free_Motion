@@ -65,6 +65,8 @@ Fields and the env vars that fill them:
 | `safety_default` | `FREEMOTION_SAFETY_DEFAULT` | no | `dry_run` |
 | `led_pin` | `FREEMOTION_LED_PIN` (BCM int) | no | `None` |
 | `hardware_profile` | `FREEMOTION_HARDWARE` | no | `host` (suggested values: `host`, `mock`, `pi`) |
+| `pi_armed_pin` | `FREEMOTION_PI_ARMED_PIN` (BCM int) | no | `None` (controller default: BCM 27) |
+| `pi_moving_pin` | `FREEMOTION_PI_MOVING_PIN` (BCM int) | no | `None` (controller default: BCM 22) |
 | `enabled_features` | `FREEMOTION_FEATURES` (CSV) | no | empty |
 | `denied_commands` | `FREEMOTION_DENIED_COMMANDS` (CSV) | no | empty (no commands denied) |
 
@@ -173,24 +175,37 @@ Set `TELEGRAM_BOT_TOKEN`, run it, DM the bot `/ping`. That's a real Free Motion 
 
 For richer examples, see:
 
-- [`examples/pipe_check/`](../examples/pipe_check/) — Pi with optional GPIO LED, the canonical Pi reference.
+- [`examples/pi_bench_demo/`](../examples/pi_bench_demo/) — **the canonical Pi reference (M4).** Real `PiHardwareController` + `SafetyGate` over the full M4 command set.
 - [`examples/mock_drone/`](../examples/mock_drone/) — no hardware required, uses `MockHardwareController` for `arm`/`disarm`/`move`.
+- [`examples/pipe_check/`](../examples/pipe_check/) — smallest end-to-end Pi check (M0); LED only.
 
 ## Hardware: when you actually have some
 
-A `HardwareController` is the contract a "thing that can move" implements. Today there's `MockHardwareController`; a `PiHardwareController` is on the roadmap.
+A `HardwareController` is the contract a "thing that can move" implements. Today the runtime ships:
 
-If your device controls hardware, factor it behind that interface so handlers don't care which implementation they're talking to. See [`examples/mock_drone/mock_drone.py`](../examples/mock_drone/mock_drone.py) for the wiring pattern.
+- [`MockHardwareController`](../freemotion/hardware/mock.py) — deterministic in-memory mock for tests and dev.
+- [`PiHardwareController`](../freemotion/hardware/pi.py) — bench-safe Raspberry Pi GPIO controller (M4). Drives `armed_pin` HIGH while armed, pulses `moving_pin` HIGH on `move()`. `RPi.GPIO` is imported lazily so the module is safe to import on any host.
+
+The factory picks the right one for you:
+
+```python
+from freemotion.hardware import make_controller_from_config, SafetyGate
+
+inner = make_controller_from_config(cfg)         # Pi or Mock based on cfg.hardware_profile
+controller = SafetyGate(inner, cfg.safety_default)  # device-level safety floor
+```
+
+`SafetyGate` (M4 Phase 3) is a `HardwareController` wrapper that fixes the device's safety mode at construction. In `dry_run`, it refuses `arm()`/`move()` regardless of any per-command override; `disarm()`/`stop()` always pass through. Wire it once at startup and the rest of your handlers can stay focused on the happy path. See [`docs/pi-hardware.md`](pi-hardware.md) and [ADR-0006](decisions.md#adr-0006--safetygate-enforce-safetymode-at-the-hardware-boundary-dry_run-is-the-floor--2026-05-03).
 
 If your device only needs a peripheral (an LED, a buzzer, a sensor), it's fine to keep that example-local — see [`examples/pipe_check/pipe_check.py`](../examples/pipe_check/pipe_check.py).
 
 ## Running on a Pi
 
-The OS-level prep lives in [`docs/pi-setup.md`](pi-setup.md). For the runtime itself:
+The OS-level prep lives in [`docs/pi-setup.md`](pi-setup.md). The hardware adapter, safety gate, and bench-flow walk-through live in [`docs/pi-hardware.md`](pi-hardware.md). For the runtime itself:
 
-- One canonical install command: `pip install -e .` from the repo root.
+- One canonical install command: `pip install -e .` from the repo root. Add `pip install RPi.GPIO` only on a Pi that drives GPIO.
 - Secrets in `~/.config/freemotion.env` with `chmod 600`.
-- Long-running: copy a systemd user unit (e.g. [`examples/pipe_check/systemd/freemotion-pipe-check.service`](../examples/pipe_check/systemd/freemotion-pipe-check.service)) into `~/.config/systemd/user/`, `systemctl --user enable --now <unit>`, and `loginctl enable-linger "$USER"` so it survives reboots without an active login session.
+- Long-running: copy a systemd user unit (e.g. [`examples/pi_bench_demo/systemd/freemotion-pi-bench-demo.service`](../examples/pi_bench_demo/systemd/freemotion-pi-bench-demo.service) or [`examples/pipe_check/systemd/freemotion-pipe-check.service`](../examples/pipe_check/systemd/freemotion-pipe-check.service)) into `~/.config/systemd/user/`, `systemctl --user enable --now <unit>`, and `loginctl enable-linger "$USER"` so it survives reboots without an active login session.
 
 ## Testing your device
 
@@ -206,11 +221,13 @@ You should rarely need to mock `python-telegram-bot` itself.
 
 - **Forgetting `cmd.correlation_id` on the reply.** The protocol requires it; clients use it to match replies to their commands.
 - **Raising in a handler.** Won't crash the agent (the router catches it), but produces an `internal` reply with the exception text. Prefer returning a structured `Reply` with an `Error`.
-- **Actuating in `dry_run`.** Handlers that move hardware MUST check `cmd.safety` before doing anything physical. See `make_move_handler` for the canonical shape.
+- **Actuating in `dry_run`.** Handlers that move hardware MUST check `cmd.safety` before doing anything physical. See `make_move_handler` for the canonical shape. The `SafetyGate` is a second line of defense, not a substitute.
+- **Forgetting the `SafetyGate` in your own example.** The handler-level check gates `cmd.safety`; the gate gates `cfg.safety_default`. Both matter. Use `SafetyGate(make_controller_from_config(cfg), cfg.safety_default)` as the wiring pattern (see [`examples/pi_bench_demo/pi_bench_demo.py`](../examples/pi_bench_demo/pi_bench_demo.py)).
 - **Loose `TELEGRAM_ALLOWED_CHAT_IDS`.** A bot with no allowlist replies to anyone. The agent logs a loud warning, but lock it down once you've found your chat id.
 
 ## Where to read next
 
+- Pi hardware (controller, gate, bench flow): [docs/pi-hardware.md](pi-hardware.md)
 - Wire format: [docs/protocol.md](protocol.md)
 - Why things are the way they are: [docs/decisions.md](decisions.md)
 - Architecture overview: [docs/architecture.md](architecture.md)
