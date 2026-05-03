@@ -2,8 +2,9 @@
 
 Verifies the example imports cleanly on a non-Pi host, ``build_router``
 registers exactly the M4 Phase 2 command set, the deny policy carries
-through (and ``stop`` is exempt), and ``stop``'s ``on_stop`` hook is
-wired through to the controller.
+through (and ``stop`` is exempt), ``stop``'s ``on_stop`` hook is wired
+through to the controller, and the M4 Phase 3 ``SafetyGate`` is the
+floor (dry_run cannot actuate even with a per-command override).
 
 The tests use a `MockHardwareController` so CI never needs ``RPi.GPIO``.
 The Pi-specific path is covered in ``tests/test_pi.py``.
@@ -24,7 +25,7 @@ if _DEMO_DIR not in sys.path:
 import pi_bench_demo  # noqa: E402
 
 from freemotion.config import Config  # noqa: E402
-from freemotion.hardware import MockHardwareController  # noqa: E402
+from freemotion.hardware import MockHardwareController, SafetyGate  # noqa: E402
 from freemotion.protocol import (  # noqa: E402
     Command,
     CommandName,
@@ -138,3 +139,48 @@ def test_move_in_dry_run_does_not_change_position() -> None:
     assert reply.ok is True
     assert "dry_run" in reply.message
     assert controller.state()["position"] == [0.0, 0.0, 0.0]
+
+
+# -- Phase 3: SafetyGate floor --------------------------------------
+
+
+def test_safety_gate_floor_blocks_per_command_override() -> None:
+    """If the device default is dry_run, a command with safety=bench
+    must NOT actuate — the gate is the floor, not the ceiling.
+    Mirrors how `main()` wires the runtime."""
+    cfg = _cfg(safety_default=SafetyMode.DRY_RUN)
+    inner = MockHardwareController()
+    controller = SafetyGate(inner, cfg.safety_default)
+    router = pi_bench_demo.build_router(cfg, controller)
+
+    arm_cmd = Command(cmd=CommandName.ARM, sender="t", safety=SafetyMode.BENCH)
+    reply = router.dispatch(arm_cmd)
+    assert reply.ok is False
+    assert reply.error is not None
+    assert reply.error.code.value == "unsafe_in_mode"
+    assert inner.state()["armed"] is False
+
+
+def test_safety_gate_status_telemetry_includes_safety() -> None:
+    cfg = _cfg(safety_default=SafetyMode.BENCH)
+    controller = SafetyGate(MockHardwareController(), cfg.safety_default)
+    router = pi_bench_demo.build_router(cfg, controller)
+    cmd = Command(cmd=CommandName.STATUS, sender="t", safety=SafetyMode.BENCH)
+    reply = router.dispatch(cmd)
+    assert reply.telemetry["controller"]["safety"] == "bench"
+
+
+def test_stop_through_safety_gate_in_dry_run_still_works() -> None:
+    """Even when the gate is dry_run, /stop must reach the controller.
+    Per ADR-0004 (deny exempt) + ADR-0006 (stop passes through)."""
+    cfg = _cfg(safety_default=SafetyMode.DRY_RUN)
+    inner = MockHardwareController()
+    controller = SafetyGate(inner, cfg.safety_default)
+    router = pi_bench_demo.build_router(cfg, controller)
+
+    inner.arm()
+    assert inner.state()["armed"] is True
+    cmd = Command(cmd=CommandName.STOP, sender="t", safety=SafetyMode.BENCH)
+    reply = router.dispatch(cmd)
+    assert reply.ok is True
+    assert inner.state()["armed"] is False

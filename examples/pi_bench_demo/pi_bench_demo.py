@@ -47,7 +47,11 @@ from freemotion.agent import (
     make_stop_handler,
 )
 from freemotion.config import Config
-from freemotion.hardware import HardwareController, make_controller_from_config
+from freemotion.hardware import (
+    HardwareController,
+    SafetyGate,
+    make_controller_from_config,
+)
 from freemotion.protocol import CommandName
 from freemotion.router import Router
 
@@ -112,20 +116,31 @@ def main() -> None:
             cfg.hardware_profile,
         )
 
-    controller = make_controller_from_config(cfg)
-    if cfg.hardware_profile == "pi" and not controller.available:
+    inner = make_controller_from_config(cfg)
+    if cfg.hardware_profile == "pi" and not inner.available:
         LOG.warning(
             "PiHardwareController is offline (RPi.GPIO not importable, or "
             "GPIO setup failed). The agent will still run; arm/move will "
             "return False and /status will report connected: false."
         )
 
+    # SafetyGate enforces cfg.safety_default at the controller boundary.
+    # In dry_run, it refuses arm/move regardless of any per-command
+    # `safety` override — the device-level default is the floor, not
+    # the ceiling. See ADR-0006 in docs/decisions.md.
+    controller = SafetyGate(inner, cfg.safety_default)
+    LOG.info(
+        "SafetyGate active: safety=%s; arm/move %s",
+        cfg.safety_default.value,
+        "refused (dry_run)" if cfg.safety_default.value == "dry_run" else "permitted",
+    )
+
     router = build_router(cfg, controller)
     agent = Agent(config=cfg, router=router)
     try:
         agent.run()
     finally:
-        cleanup = getattr(controller, "cleanup", None)
+        cleanup = getattr(inner, "cleanup", None)
         if callable(cleanup):
             try:
                 cleanup()

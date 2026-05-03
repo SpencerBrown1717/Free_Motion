@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from .interface import HardwareController
 from .mock import MockHardwareController
+from .safety import SafetyGate
 
 if TYPE_CHECKING:  # pragma: no cover
     from freemotion.config import Config
@@ -31,6 +32,7 @@ LOG = logging.getLogger("freemotion.hardware")
 __all__ = [
     "HardwareController",
     "MockHardwareController",
+    "SafetyGate",
     "make_controller_from_config",
 ]
 

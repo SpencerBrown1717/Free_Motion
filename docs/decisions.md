@@ -99,6 +99,24 @@ Each ADR has:
 
 **Status.** Locked. The `examples/local_sim_demo.py` script is the canonical reference for how to wire `WorldState` into a device.
 
+---
+
+## ADR-0006 — SafetyGate: enforce SafetyMode at the hardware boundary, dry_run is the floor — 2026-05-03
+
+**Context.** M4 Phase 3 asked for "no path can accidentally actuate in `dry_run`, and stop always works." The motion handlers in `freemotion.agent.builtins` already check `cmd.safety` before calling into the controller, but the gate was at the handler layer only — a future contributor adding a new actuating handler can forget the check, and a per-command `safety` override could loosen the device's default rather than tightening it. The pressure was for a single, testable invariant: "in `dry_run`, `arm()` and `move()` cannot run on the controller, regardless of who tried."
+
+**Decisions.**
+
+- **`SafetyGate` is a `HardwareController` wrapper, not a new Protocol.** It satisfies the same interface and is composable with anything that implements it (mock, Pi, future Jetson, future ESP32). Composition over inheritance: nothing inside the controllers themselves needs to learn about `SafetyMode`.
+- **The gate's safety mode is fixed at construction.** A runtime safety-mode change is a process-level event (restart with new env vars), not a per-command knob. Per-command `safety` stays a handler-layer concern. Constraint here keeps the safety floor unambiguous: if the gate is `dry_run`, no actuation happens, period.
+- **Device default is the floor, command override is the ceiling.** A command saying `safety=bench` against a device configured `safety_default=dry_run` is refused at the gate. This inverts the historical permissive behavior, and is the right default: if an operator chose `dry_run` for the device, an inbound command shouldn't be able to override that.
+- **`dry_run` refuses `arm()` and `move()`.** Both return `False` and log; the inner controller is never called. The motion handlers translate that `False` into a protocol-shaped `unsafe_in_mode` reply (their existing failure path).
+- **`dry_run` permits `disarm()` and `stop()`.** Depowering is always the safer direction; refusing to drive a pin LOW offers no safety benefit and could leave a controller stuck armed if `dry_run` is enabled mid-flight (figuratively). `stop()` was already exempt per ADR-0004; `disarm()` joins it for symmetry.
+- **`bench` and `live` pass through every method.** Distinguishing what each mode permits is the inner controller's job: a future motor controller can refuse motor-driving primitives in `bench` while permitting indicator pins. The gate doesn't pre-judge that distinction.
+- **`state()` carries the active safety mode.** The gate stamps `safety: <mode>` into `state()` so `/status` telemetry exposes the runtime's effective safety floor without requiring callers to wire `Config` into the status handler separately.
+
+**Status.** Locked. Wired into `examples/pi_bench_demo/`. `examples/mock_drone/` and `examples/pipe_check/` are not retrofitted: the mock has no real actuation to gate, and `pipe_check`'s LED handlers already gate on `dry_run` at the handler layer.
+
 ## Pending
 
 If you make an architectural call that future contributors will ask "why?" about, write a four-line ADR here. Bias toward writing them down. Reverse-engineering decisions is more expensive than recording them.

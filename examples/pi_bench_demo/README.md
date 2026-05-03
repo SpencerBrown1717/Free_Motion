@@ -154,7 +154,9 @@ A few important behaviors to verify on the bench:
 - **`/move` without `/arm`** → reply: `unsafe_in_mode`, no LED pulse. The Pi controller refuses the call.
 - **`/arm` while `safety=dry_run`** → reply: `unsafe_in_mode`, **no GPIO write**. The handler refuses before touching the controller.
 - **`/move` while `safety=dry_run`** → reply: `dry_run: would move (...)`, **no GPIO write**. Logged-only by design.
-- **`/stop` while `arm` / `move` are denied** → still works. Stop is exempt from `FREEMOTION_DENIED_COMMANDS` (per ADR-0004 in [docs/decisions.md](../../docs/decisions.md)).
+- **JSON command with `safety=bench` against a `dry_run` device** → still refused. The `SafetyGate` (M4 Phase 3, ADR-0006 in [docs/decisions.md](../../docs/decisions.md)) is wired around the controller, so the device's `FREEMOTION_SAFETY_DEFAULT` is the **floor**: a per-command override can only tighten safety, never loosen it. To actually actuate, set `FREEMOTION_SAFETY_DEFAULT=bench` (or `live`) and restart the demo. `/status` shows the active mode under `controller.safety` so you can verify the gate.
+- **`/stop` while `arm` / `move` are denied** → still works. Stop is exempt from `FREEMOTION_DENIED_COMMANDS` (per ADR-0004) and bypasses the `SafetyGate`'s `dry_run` block (per ADR-0006).
+- **`/disarm` while `safety=dry_run`** → still passes through the gate. Depowering is always the safer direction; refusing it offers no safety benefit and could leave the controller stuck armed.
 - **Pull the `RPi.GPIO` rug** (e.g. uninstall it before launch) → demo still starts; the controller logs `RPi.GPIO unavailable; PiHardwareController is offline` and `/status` reports `connected: false`. `/arm` and `/move` return refusals; `/stop` still acks.
 
 If any of the above doesn't hold on your bench, file an issue — that's the contract.

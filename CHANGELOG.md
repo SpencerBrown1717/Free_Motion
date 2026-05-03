@@ -4,6 +4,15 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added (M4 Phase 3 — safety-mode enforcement on real hardware)
+
+- **`SafetyGate`** (`freemotion/hardware/safety.py`) — `HardwareController` wrapper that enforces a fixed `SafetyMode` at the controller boundary. In `dry_run`, `arm()` and `move()` refuse without ever calling the inner controller; `disarm()` and `stop()` always pass through (depowering is always safe; `stop` is the unconditional `ADR-0004` hard-stop). In `bench` / `live`, every method passes through. `state()` is decorated with the active `safety` field so `/status` exposes the runtime's effective safety floor without wiring `Config` into the status handler.
+- **Wired into `examples/pi_bench_demo/`** — `main()` now constructs `SafetyGate(make_controller_from_config(cfg), cfg.safety_default)` so the device's `FREEMOTION_SAFETY_DEFAULT` is the **floor**: a per-command `safety=bench` override against a `FREEMOTION_SAFETY_DEFAULT=dry_run` device is refused at the gate, surfaced as `unsafe_in_mode`. `cleanup()` still routes to the inner Pi controller via `gate.inner`.
+- **`docs/decisions.md` ADR-0006** — locks the gate semantics: composition over inheritance, fixed-at-construction, device default is the floor (not the ceiling), depowering paths (`disarm`, `stop`) always pass through, `state()` carries the active safety mode. `mock_drone` and `pipe_check` are intentionally not retrofitted (no real actuation to gate).
+- **Tests** — `tests/test_safety_gate.py` (14): protocol satisfaction, `state()` surfaces safety, `dry_run` blocks `arm`/`move` without inner calls, `dry_run` passes `disarm`/`stop` through, `bench`/`live` pass everything through, `state()` returns independent dicts (no shared-mutation bugs), and an integration test wiring `make_arm_handler` over the gate to verify a per-command `safety=bench` override on a `dry_run` device surfaces `unsafe_in_mode`. `tests/test_pi_bench_demo.py` (+3): floor-blocks-override, status carries `controller.safety`, `/stop` still works through a `dry_run` gate. **174 tests pass.**
+
+Phase 3 gate met: in `dry_run`, no path can actuate `arm`/`move` regardless of per-command safety overrides; `stop` always works (deny list and gate both bypassed); `/status` reflects the active safety mode. Phase 4 (docs polish — `docs/pi-hardware.md`, README, ROADMAP, GETTING_STARTED) is next.
+
 ### Added (M4 Phase 2 — bench demo)
 
 - **`examples/pi_bench_demo/`** — the **first real hardware** Free Motion device. Wires `Config.from_env` → `make_controller_from_config` → `Router` → `Agent` → Telegram. Registers exactly the Phase 2 command set: `/ping`, `/capabilities`, `/status`, `/arm`, `/move`, `/stop`, `/disarm`. Falls back to a `MockHardwareController` (with a warning) when `FREEMOTION_HARDWARE` is not `"pi"`, so the demo also runs on a dev laptop. Calls `controller.cleanup()` from the agent's shutdown path.
