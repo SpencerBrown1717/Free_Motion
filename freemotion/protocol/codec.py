@@ -212,6 +212,25 @@ def parse_slash(
             cmd=cmd_name, sender=sender, args={}, safety=default_safety
         )
 
+    if name == "move":
+        parts = arg_str.split()
+        if len(parts) != 3:
+            raise ProtocolError(
+                ErrorCode.BAD_ARGS, "usage: /move x y z"
+            )
+        try:
+            x, y, z = (float(p) for p in parts)
+        except ValueError as exc:
+            raise ProtocolError(
+                ErrorCode.BAD_ARGS, "usage: /move x y z (x, y, z must be numbers)"
+            ) from exc
+        return Command(
+            cmd=CommandName.MOVE,
+            sender=sender,
+            args={"x": x, "y": y, "z": z},
+            safety=default_safety,
+        )
+
     if name in _SLASH_TO_CMD:
         return Command(
             cmd=_SLASH_TO_CMD[name],

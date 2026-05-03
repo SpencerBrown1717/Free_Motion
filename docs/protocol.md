@@ -105,6 +105,7 @@ Intentionally tiny. Every additional command needs a tracked rationale.
 | `arm` | `{}` | `armed` | refused (`unsafe_in_mode`) | Requires `bench` or `live`. |
 | `disarm` | `{}` | `idle` | yes | Always allowed. |
 | `stop` | `{}` | `idle` | yes | **Hard stop, never refused, in any mode.** |
+| `move` | `{ "x": float, "y": float, "z": float }` | `moving` | logged, not actuated | Relative offset from current position. Slash sugar: `/move x y z`. |
 
 ## Safety modes
 

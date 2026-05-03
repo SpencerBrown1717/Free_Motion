@@ -1,8 +1,10 @@
 # pipe_check (M0)
 
-The smallest end-to-end Free Motion demo. It proves the **OpenClaw → Telegram → device** pipe works on the machine in front of you, with no motion, no vision, and no models.
+The smallest end-to-end Free Motion demo and the **reference adopter** of the runtime. It proves the **OpenClaw → Telegram → device** pipe works on the machine in front of you, with no motion, no vision, and no models.
 
-You DM a Telegram bot. Your Pi (or laptop) replies through the [v0 protocol](../../docs/protocol.md). Optionally an LED blinks.
+You DM a Telegram bot. Your Pi (or laptop) replies through the [v0 protocol](../../docs/protocol.md), routed by `freemotion.agent`. Optionally an LED blinks.
+
+The example contributes only an LED adapter and `led_on` / `led_off` handlers; everything else (`ping`, `stop`, `status`, `capabilities`, message parsing, auth, Telegram I/O) comes from `freemotion/`.
 
 ## What it does
 

@@ -29,6 +29,7 @@ class CommandName(str, enum.Enum):
     ARM = "arm"
     DISARM = "disarm"
     STOP = "stop"
+    MOVE = "move"
 
 
 class ErrorCode(str, enum.Enum):

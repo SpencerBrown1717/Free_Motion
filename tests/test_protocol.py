@@ -241,3 +241,37 @@ def test_parse_slash_with_hyphen_is_bad_args() -> None:
             "/foo-bar", sender="chat:1", default_safety=SafetyMode.BENCH
         )
     assert exc.value.code == ErrorCode.BAD_ARGS
+
+
+def test_parse_slash_move() -> None:
+    cmd = parse_slash(
+        "/move 1 2 3", sender="chat:1", default_safety=SafetyMode.BENCH
+    )
+    assert cmd.cmd == CommandName.MOVE
+    assert cmd.args == {"x": 1.0, "y": 2.0, "z": 3.0}
+    assert cmd.safety == SafetyMode.BENCH
+
+
+def test_parse_slash_move_floats() -> None:
+    cmd = parse_slash(
+        "/move 1.5 -2 0.25",
+        sender="chat:1",
+        default_safety=SafetyMode.BENCH,
+    )
+    assert cmd.args == {"x": 1.5, "y": -2.0, "z": 0.25}
+
+
+def test_parse_slash_move_wrong_arg_count() -> None:
+    with pytest.raises(ProtocolError) as exc:
+        parse_slash(
+            "/move 1 2", sender="chat:1", default_safety=SafetyMode.BENCH
+        )
+    assert exc.value.code == ErrorCode.BAD_ARGS
+
+
+def test_parse_slash_move_non_numeric() -> None:
+    with pytest.raises(ProtocolError) as exc:
+        parse_slash(
+            "/move a b c", sender="chat:1", default_safety=SafetyMode.BENCH
+        )
+    assert exc.value.code == ErrorCode.BAD_ARGS

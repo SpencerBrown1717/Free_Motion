@@ -36,10 +36,10 @@ The project is framed around six modules. Each milestone below lights one or mor
 |---|---|
 | **Transport** | Move bytes between OpenClaw and the device. Telegram first; pluggable later. (shipped, M0) |
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
-| **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. |
+| **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2) |
 | **Mission control** | Goal + perception → next action. Stub now, Gemma small later. |
 | **Vision** | On-device perception. Stub now, YOLO later. |
-| **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). |
+| **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` shipped (M2). `PiHardwareController` pending. |
 | **Safety** | Modes, hard stops, rate limits, watchdogs. Cuts across every other module. |
 
 ## Milestones
@@ -73,22 +73,31 @@ Deliverables (all shipped):
 - `tests/test_protocol.py` — round-trip + error-path coverage.
 - `examples/pipe_check/` migrated onto the protocol as the first adopter.
 
-### M2 — Pi device runtime
+### M2 — Pi device runtime (foundation shipped)
 
 Goal: make the Pi a real first-class target with one long-running service that owns the protocol.
 
-What gets built:
+What's now in the repo:
 
-1. **Free Motion agent** — receive → validate against protocol → route to module → structured reply.
-2. **Config system** — env or file for token, allowlist, hardware profile, safety limits, enabled modules.
-3. **Command router** with module hooks: `gpio`, `telemetry`, `motion`, `vision`, `mission_control`.
-4. **Health endpoints** — `/status`, `/health`, `/version`, `/capabilities` as slash sugar over the protocol.
+1. **Free Motion agent** — receive → validate → route → reply, with the pure logic in `handle_text` for testability.
+2. **Config** — env-driven, frozen, single source of truth (token, allowlist, device id, safety default, hardware profile, enabled features).
+3. **Command router** — typed handler registration, total dispatch (unknown commands and handler exceptions both return well-formed replies).
+4. **Built-in handlers** — `ping`, `stop`, `status`, `capabilities`. `status` and `capabilities` carry structured telemetry per [docs/protocol.md](docs/protocol.md#device-registration).
+5. **`pipe_check` is now the reference adopter** — ~120 lines, contributes only the GPIO LED hardware adapter and `led_on/led_off` handlers.
 
-Deliverables:
+Now also shipped under M2 (foundation for M5):
 
-- `freemotion/agent/`, `freemotion/config/`, `freemotion/router/`
-- `docs/pi-runtime.md`
-- `examples/device_agent/` (replaces or wraps `examples/pipe_check/`)
+- `freemotion/hardware/` with a `HardwareController` Protocol and `MockHardwareController`.
+- New `move` command (additive to the protocol; no `v` bump).
+- Built-in motion handlers (`make_arm_handler`, `make_disarm_handler`, `make_move_handler`) that operate on any `HardwareController`.
+- `examples/mock_drone/` — second example, runs on any laptop with no hardware.
+- `docs/pi-runtime.md` — operator + contributor guide for the runtime.
+
+Still to do under M2 (tracked in [`docs/issues/m2-m3.md`](docs/issues/m2-m3.md)):
+
+- Per-command allow/deny in `Config` + `Router`.
+- `PiHardwareController`.
+- Module hooks for future `motion` / `vision` / `mission_control` (lit up in M3).
 
 ### M3 — Mission and vision stubs
 
