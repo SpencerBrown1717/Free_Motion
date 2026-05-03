@@ -26,6 +26,9 @@ gemma = [
   "transformers>=4.40,<5",
   "torch>=2",
 ]
+picam = [
+  "picamera2>=0.3",
+]
 
 [project.urls]
 Homepage = "https://www.freemotion.tech/"

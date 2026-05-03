@@ -1,0 +1,14 @@
+[Unit]
+Description=Free Motion pi_camera_demo (Step 1 — live Pi camera + YOLO)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/src/Free_Motion
+ExecStart=%h/src/Free_Motion/.venv/bin/python examples/pi_camera_demo/pi_camera_demo.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

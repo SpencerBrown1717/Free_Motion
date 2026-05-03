@@ -38,7 +38,7 @@ The project is framed around six modules. Each milestone below lights one or mor
 | **Protocol** | Command and reply envelopes, validation, versioning. (shipped, M1) |
 | **Agent / runtime** | Long-running service on the device: receive → validate → route → reply. (foundation shipped, M2) |
 | **Mission control** | Goal + perception → next action. `MissionPolicy` Protocol + `MockMissionControl` + `WorldStateSnapshot` input shipped (M3); `GemmaMissionControl` shipped post-M4 behind `[gemma]` extra and `FREEMOTION_MISSION_BACKEND=gemma`. |
-| **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` (M3) + `YoloVision` (post-M4, behind `[yolo]` extra and `FREEMOTION_VISION_BACKEND=yolo`). |
+| **Vision** | On-device perception. `VisionBackend` Protocol + `MockVision` (M3) + `YoloVision` (post-M4, behind `[yolo]` extra and `FREEMOTION_VISION_BACKEND=yolo`) + `PiCameraSource` live frame producer (Step 1, behind `[picam]` extra). |
 | **World state** | Shared "what's true now" — `WorldStateSnapshot` + `WorldState` (M3, shipped). |
 | **Hardware adapter** | Per-platform actuators (Pi GPIO, Jetson, ESP32, Arduino). `HardwareController` Protocol + `MockHardwareController` (M2) + `PiHardwareController` + `make_controller_from_config` factory shipped (M4). Jetson / ESP32 / Arduino on the M5 roadmap. |
 | **Safety** | Modes, hard stops, rate limits, watchdogs. `SafetyMode` (M1), per-command deny list (M2), `SafetyGate` controller wrapper enforcing `cfg.safety_default` as the device-level floor (M4). Rate limits / watchdogs deferred. |
@@ -188,12 +188,22 @@ Past work (shipped, post-M4):
 
 9. ~~`YoloVision` adapter behind `FREEMOTION_VISION_BACKEND=yolo` and `pip install -e .[yolo]`.~~ See ADR-0007 in [`docs/decisions.md`](docs/decisions.md).
 10. ~~`GemmaMissionControl` adapter behind `FREEMOTION_MISSION_BACKEND=gemma` and `pip install -e .[gemma]`.~~ See ADR-0008 in [`docs/decisions.md`](docs/decisions.md).
+11. ~~`PiCameraSource` live-camera adapter + `examples/pi_camera_demo/` standalone demo.~~ Step 1 of the Pi-first lockdown. See ADR-0009 in [`docs/decisions.md`](docs/decisions.md).
 
-Next, in priority order:
+Next, in priority order — **Pi-first lockdown** (Jetson is gated on these landing):
 
-11. **Jetson Nano port** (M5). Same `HardwareController` Protocol; new adapter class + example. Heavier on-device vision unlocks once it's there.
-12. **ESP32 / Arduino bridges** (M5).
-13. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.
+12. **Step 2 — Pi full closed loop.** One end-to-end example: Telegram → live YOLO → `WorldState` → Gemma → bench-safe hardware action → `/status`. Plumbs `PiCameraSource` and `GemmaMissionControl` into the existing `pi_bench_demo`-shaped runtime, behind the existing `SafetyGate`. `/stop` interrupts the loop unconditionally.
+13. **Step 3 — Real-world failure-mode hardening.** Explicit, tested handling for: camera missing, YOLO unavailable, Gemma unavailable, stale/empty world state, stop during move, signal interruption. Every failure returns a protocol-shaped reply; nothing actuates in `dry_run`; `/stop` remains unconditional.
+14. **Step 4 — Pi reference architecture lock.** One canonical Pi stack doc (`docs/pi-reference.md` or equivalent) listing the supported command set, hardware path, model path, bench-safety behavior, and full env-var set. Docs match code exactly. The Pi path becomes copy-able to Jetson.
+15. **Step 5 — One repeatable Pi benchmark demo.** A named bench task (e.g. `pi_follow_bench`) with a fixed command sequence, fixed success criteria, and a short operator runbook. This demo becomes the **gate for Jetson work**.
+
+Then, only after Steps 2–5 are green:
+
+16. **Jetson Nano port** (M5). Same `HardwareController` Protocol + same vision/mission seams; new hardware adapter; same Pi reference architecture, copied. Heavier on-device YOLO/Gemma unlocks once the port is real.
+17. **ESP32 / Arduino bridges** (M5). Sensor / actuator coprocessors over UART/SPI to a heavier host.
+18. **Rate limits, watchdogs, link-loss fail-safe** (Safety module continued). Bench rig is the test bed; bumped from M4 to keep the milestone narrow.
+
+Move-to-Jetson gate: **A Raspberry Pi can receive a Telegram command, run live YOLO, update world state, get one Gemma decision, execute one bench-safe action, and report status back reliably.** Until that statement is true, no Jetson work.
 
 ## What success looks like
 

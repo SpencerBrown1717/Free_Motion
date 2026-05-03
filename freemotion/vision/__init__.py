@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from .interface import Detection, VisionBackend, VisionResult
 from .mock import MockVision
+from .picamera import PiCameraSource
 from .yolo import YoloVision
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,6 +27,7 @@ LOG = logging.getLogger("freemotion.vision")
 __all__ = [
     "Detection",
     "MockVision",
+    "PiCameraSource",
     "VisionBackend",
     "VisionResult",
     "YoloVision",

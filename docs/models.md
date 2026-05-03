@@ -99,6 +99,33 @@ vision = make_vision_from_config(Config.from_env())  # YoloVision when FREEMOTIO
 
 Tests in [`tests/test_vision_yolo.py`](../tests/test_vision_yolo.py) (24 + 1 skip) cover the adapter through an injected `yolo_factory` so CI runs cleanly without `ultralytics`. The trailing test calls `pytest.importorskip("ultralytics")` so contributors with `[yolo]` installed get an extra smoke layer.
 
+#### Live frames — `PiCameraSource` (shipped, Step 1)
+
+`freemotion/vision/picamera.py` ships a canonical Pi camera frame producer for the `frame_source` seam:
+
+```python
+from freemotion.vision import PiCameraSource, YoloVision
+
+cam = PiCameraSource(resolution=(640, 480))
+try:
+    vision = YoloVision(frame_source=cam, classes=["person"])
+    while True:
+        result = vision.scene()
+        # ... do something with result.detections ...
+finally:
+    cam.close()
+```
+
+`PiCameraSource` is a callable, **not** a `VisionBackend`. It produces frames; YoloVision (or whatever you wire in) does inference. v1 scope per [ADR-0009](decisions.md#adr-0009--picamerasource-v1-picamera2-backed-callable-frame-producer-transient-failure-tolerant--2026-05-04):
+
+- Backed by `picamera2`. Install via `pip install -e .[picam]`. Pi OS Bookworm or newer; the legacy `picamera` (mmal) is dead and not supported.
+- Lazy `picamera2` import. Failures during import / open / configure / start flip the source offline (`available is False`, `cam()` returns `None`) and clean up the partial camera handle. The agent loop never sees a camera-induced exception.
+- Per-call capture failures don't latch the source offline — one bad frame returns `None` for that tick, increments `cam.capture_failures`, the next call retries. That matches how real cameras behave.
+- `close()` is idempotent and never raises. Synchronous capture, no background thread, no global lock around capture itself — `/status` keeps working while the camera is active (the architectural prerequisite for the Step 2 closed loop).
+- USB webcams **don't need this wrapper.** Plug `cv2.VideoCapture(0).read`-shaped callables straight into `YoloVision(frame_source=...)`. ADR-0009 records why — a wrapper would only cargo-cult `PiCameraSource`'s libcamera-specific lifecycle.
+
+Standalone demo and full operator walkthrough: [`examples/pi_camera_demo/`](../examples/pi_camera_demo/) and [`docs/pi-camera.md`](pi-camera.md). Tests in [`tests/test_pi_camera_source.py`](../tests/test_pi_camera_source.py) (16 + 1 skip) and [`tests/test_pi_camera_demo.py`](../tests/test_pi_camera_demo.py) (6) cover construction failures, capture failures, idempotent close, the demo's exit codes, and integration with `YoloVision` via the `frame_source` seam — all CI-clean via injected fakes.
+
 ## Mission control
 
 ### Interface — [`freemotion/mission_control/interface.py`](../freemotion/mission_control/interface.py)

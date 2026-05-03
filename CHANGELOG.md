@@ -4,6 +4,31 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added (Step 1 — Pi live camera integration: `PiCameraSource` + `pi_camera_demo`)
+
+- **`PiCameraSource`** (`freemotion/vision/picamera.py`) — canonical Pi camera frame producer for the existing `YoloVision(frame_source=...)` seam. v1 scope per ADR-0009:
+  - Callable like a frame producer: ``cam()`` returns the latest frame as a numpy array, or ``None`` on any failure. Drops straight into `YoloVision` without a wrapper.
+  - Backed by ``picamera2`` (the modern libcamera-based stack on Pi OS Bookworm and newer). USB webcams stay un-wrapped — `cv2.VideoCapture(0).read`-shaped lambdas already work and a wrapper would be cargo-culting `PiCameraSource`'s lifecycle quirks.
+  - **Lazy `picamera2` import** inside `__init__`. Module imports cleanly on a host without the optional dep. Construction failures (import missing, camera busy, configure raises, start raises) flip the source offline (`available is False`, `cam()` returns `None`); the agent loop is unaffected. The constructor calls `stop()` + `close()` on the partial camera handle so re-running the demo after a failed start doesn't trip "camera busy."
+  - **Per-call capture failures don't latch the source offline.** A single failed capture returns `None` for that tick, increments `cam.capture_failures`, and the next call retries. The counter is exposed as a property so `/status` (Step 2) can surface it without scraping logs.
+  - **`close()` is idempotent and never raises.** Underlying exceptions are caught and logged; subsequent `close()` calls hit the same flag and return.
+  - **Per-call capture does not acquire the source's lock.** A slow `capture_array()` cannot block `close()`, `available`, or `capture_failures` readers. Architectural pre-requisite for "Step 1 acceptance criterion: `/status` still works while camera is active."
+  - Resolution fixed at construction (`(640, 480)` default — the YOLO nano sweet spot for Pi 4 CPU). Build a new source if you need a different resolution.
+  - `picam_factory` injection seam for tests: 16 of 17 source tests run without `picamera2` via `_FakePicam`. The 17th is a `pytest.importorskip("picamera2")` smoke that runs only when `[picam]` is installed (and only verifies the import path, not real camera open — that requires real hardware).
+- **`examples/pi_camera_demo/`** — standalone Pi camera + YOLO loop. No Telegram, no router, no agent, no hardware controller. Boots `PiCameraSource` → `YoloVision` → prints person detections per tick. Exits cleanly on SIGINT / SIGTERM with `cam.close()`. Exit codes: `0` clean, `2` camera offline, `3` YOLO offline. Includes operator README, autostart systemd unit. 6 of 23 new tests cover the demo's exit-code contract and lifecycle (camera offline, YOLO offline, max-ticks loop, README/systemd unit presence).
+- **`pyproject.toml`** — new `[picam]` extra (`picamera2>=0.3`). Base install stays stdlib + `python-telegram-bot`.
+- **CI** — import smoke now also covers `from freemotion.vision import PiCameraSource` and `import pi_camera_demo` to confirm the lazy-import discipline holds on a non-Pi GitHub runner.
+- **Docs** — `docs/decisions.md` ADR-0009 locks the v1 design (picamera2-backed, callable producer not a backend, transient-failure tolerant, no-USB scope, no-thread synchronous capture, lock-free per-call). New `docs/pi-camera.md` is the canonical reference: setup, what the source does, what it doesn't do, the failure model, USB webcam alternative, troubleshooting, and where it fits in the closed-loop architecture (Step 2).
+
+**260 tests pass on every push** (+2 skips when `[yolo]` and `[picam]` aren't installed). Test breakdown for the new code: 16 + 1 skip in `tests/test_pi_camera_source.py`, 6 in `tests/test_pi_camera_demo.py` — 22 new passing tests in this step.
+
+This is **Step 1** of the Pi-first lockdown that gates all Jetson work. The next four steps:
+
+- **Step 2 — Pi full closed loop.** Telegram → live YOLO → `WorldState` → Gemma → bench-safe hardware action → `/status` → repeat. `/stop` interrupts unconditionally.
+- **Step 3 — Real-world failure-mode hardening.** Camera missing / YOLO unavailable / Gemma unavailable / stale world / stop-during-move / signal-interruption all return protocol-shaped replies; nothing actuates in `dry_run`.
+- **Step 4 — Pi reference architecture lock.** One canonical Pi stack doc; supported commands, hardware path, model path, env-var set; docs match code exactly.
+- **Step 5 — One repeatable Pi benchmark demo.** Named task, fixed sequence, fixed success criteria, short runbook. Becomes the gate for Jetson.
+
 ### Added (post-M4 — `GemmaMissionControl`, first real decision adapter)
 
 - **`GemmaMissionControl`** (`freemotion/mission_control/gemma.py`) — `MissionPolicy` backed by an instruction-tuned Gemma model served through `transformers`. v1 scope per ADR-0008:
