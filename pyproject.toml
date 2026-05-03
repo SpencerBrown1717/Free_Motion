@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "freemotion"
+version = "0.1.0"
+description = "AI motion layer for drones, robots, and edge devices."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Spencer Brown" }]
+keywords = ["robotics", "drones", "raspberry-pi", "telegram", "edge-ai"]
+dependencies = [
+  "python-telegram-bot>=21,<22",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+]
+
+[project.urls]
+Homepage = "https://www.freemotion.tech/"
+Repository = "https://github.com/SpencerBrown1717/Free_Motion"
+
+[tool.setuptools.packages.find]
+include = ["freemotion*"]
+exclude = ["tests*", "examples*", "docs*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,15 @@
+[Unit]
+Description=Free Motion pipe_check (Telegram echo demo)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/freemotion.env
+WorkingDirectory=%h/src/Free_Motion
+ExecStart=%h/src/Free_Motion/.venv/bin/python examples/pipe_check/pipe_check.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
