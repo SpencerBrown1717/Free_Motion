@@ -1,37 +1,66 @@
 # Free Motion
 
-**OpenClaw flies drones.** Open source AI motion layer for drones, robots, and Raspberry Pi.
+**OpenClaw flies drones.**  
+Free Motion is an open source AI motion layer for drones, robots, and Raspberry Pi based systems.
 
-OpenClaw sends messages through **Telegram** to a **Raspberry Pi**. The Pi runs **two models** on board — **one vision**, **one mission control** — and the **drone flies**.
+At its core, Free Motion lets **OpenClaw send commands through Telegram to an edge device**, starting with **Raspberry Pi**. The device runs **two on board models**:
+
+- a **vision model** for perception
+- a **mission control model** for action and decision making
+
+The result is simple:
+
+**OpenClaw → Telegram → device → motion**
 
 ## Website
-**Product site:** [freemotion.tech](https://www.freemotion.tech/)
 
-**Repo (source + Issues):** [github.com/SpencerBrown1717/Free_Motion](https://github.com/SpencerBrown1717/Free_Motion) · minimal [GitHub Pages](https://spencerbrown1717.github.io/Free_Motion/) splash from this repo
+**Product site:** [freemotion.tech](https://www.freemotion.tech/)  
+**Repo:** [github.com/SpencerBrown1717/Free_Motion](https://github.com/SpencerBrown1717/Free_Motion)  
+**GitHub Pages splash:** [spencerbrown1717.github.io/Free_Motion](https://spencerbrown1717.github.io/Free_Motion/)
 
-## What it does
-- Telegram as the pipe from OpenClaw to the Pi
-- Two on-device models: vision + mission control
-- Executes flight on the drone (and can extend to other robots)
-- Status and feedback during operation
+## What Free Motion does
+
+Free Motion is designed to let OpenClaw communicate with real world hardware in a lightweight, practical way.
+
+Current direction:
+
+- **Telegram** is the command pipe from OpenClaw to the device
+- **Raspberry Pi** is the first development target
+- **YOLO** handles on device vision
+- **Gemma small** handles on device mission control
+- The device executes motion locally and reports status back upstream
+
+While the first focus is drones, the same pattern can extend to:
+
+- ground robots
+- roombas
+- robot dogs
+- camera rigs
+- other lightweight edge controlled systems
 
 ## How it works
-1. OpenClaw sends the command via Telegram to the Raspberry Pi
-2. The Pi runs the vision model and the mission control model
-3. The drone executes the motion; you get updates as it runs
 
-## Stack
-- HTML landing page
-- Raspberry Pi
-- Telegram (OpenClaw → Pi)
-- Mission control model
-- Vision model
+1. A user gives OpenClaw a real world instruction
+2. OpenClaw sends the command through Telegram
+3. The connected Raspberry Pi receives the command
+4. The Pi runs:
+   - a **vision model** to understand the environment
+   - a **mission control model** to decide what to do next
+5. The device executes the motion task
+6. The system reports status, updates, and observations back to OpenClaw
 
-## Status
-Hackathon stage, open source, MIT licensed.
+## Core architecture
 
-## Contributing
-Pull requests, issues, and ideas are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-MIT
+```text
+User
+  ↓
+OpenClaw
+  ↓
+Telegram
+  ↓
+Edge device
+  ├─ YOLO vision
+  ├─ Gemma small mission control
+  └─ Motion execution
+  ↓
+Drone / robot action + status updates
