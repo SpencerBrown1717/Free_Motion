@@ -4,6 +4,16 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added (M4 Phase 2 — bench demo)
+
+- **`examples/pi_bench_demo/`** — the **first real hardware** Free Motion device. Wires `Config.from_env` → `make_controller_from_config` → `Router` → `Agent` → Telegram. Registers exactly the Phase 2 command set: `/ping`, `/capabilities`, `/status`, `/arm`, `/move`, `/stop`, `/disarm`. Falls back to a `MockHardwareController` (with a warning) when `FREEMOTION_HARDWARE` is not `"pi"`, so the demo also runs on a dev laptop. Calls `controller.cleanup()` from the agent's shutdown path.
+- **`examples/pi_bench_demo/README.md`** — operator-grade walkthrough: required Pi model, wiring (BCM 27 / 22 default with a clear "do not drive motors from these pins" warning), install, every env var the runtime reads, exact command tour with expected replies, the safety / deny / dry-run behaviors to verify on the bench, systemd autostart, and a comparison against `pipe_check`, `mock_drone`, and `local_sim_demo`.
+- **`examples/pi_bench_demo/systemd/freemotion-pi-bench-demo.service`** — user-level systemd unit mirroring the `pipe_check` pattern.
+- **CI** — import smoke now also covers `pi_bench_demo` and the `PiHardwareController` lazy-import path on a non-Pi GitHub runner.
+- **Tests** — `tests/test_pi_bench_demo.py` (8 tests): import smoke, exact Phase 2 command-set registration, `denied_commands` propagation, `stop` exempt-from-deny dispatch, `denied_by_policy` on a denied `arm`, `/stop` actually drives the controller back to idle, `/status` carries controller telemetry, `/move` in `dry_run` does not change position. **157 tests pass.**
+
+Phase 2 gate met: the demo boots from documented env vars only, runs through `/capabilities` → `/status` → `/arm` → `/move` → `/stop` → `/disarm` end-to-end against either a real Pi or a mock fallback, and `/stop` always succeeds (including under `FREEMOTION_DENIED_COMMANDS=arm,move`). Phase 3 (safety-mode hardening on real hardware) is next.
+
 ### Added (M4 Phase 1 — first real hardware proof, controller foundation)
 
 - **`PiHardwareController`** (`freemotion/hardware/pi.py`) — bench-safe `HardwareController` for Raspberry Pi. Each state transition flips a real GPIO pin: `armed_pin` HIGH while armed, `moving_pin` pulsed HIGH for `move_pulse_s` on each successful `move()`. `RPi.GPIO` is imported lazily; tests inject a `FakeGPIO` adapter via the `gpio` arg. Hardware exceptions are caught and logged: `arm()` / `move()` return `False` on failure, `stop()` always swallows. Per ADR-0004, `stop()` does not acquire the controller lock — it must succeed even mid-`move()`.

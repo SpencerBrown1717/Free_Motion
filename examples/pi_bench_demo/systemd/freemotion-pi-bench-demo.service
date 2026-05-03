@@ -1,0 +1,15 @@
+[Unit]
+Description=Free Motion pi_bench_demo (M4 Phase 2 — bench-safe Pi runtime)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/freemotion.env
+WorkingDirectory=%h/src/Free_Motion
+ExecStart=%h/src/Free_Motion/.venv/bin/python examples/pi_bench_demo/pi_bench_demo.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
