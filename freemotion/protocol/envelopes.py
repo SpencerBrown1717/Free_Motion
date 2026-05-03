@@ -30,6 +30,7 @@ class CommandName(str, enum.Enum):
     DISARM = "disarm"
     STOP = "stop"
     MOVE = "move"
+    MISSION_START = "mission_start"
 
 
 class ErrorCode(str, enum.Enum):

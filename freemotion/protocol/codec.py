@@ -231,6 +231,20 @@ def parse_slash(
             safety=default_safety,
         )
 
+    if name == "mission_start":
+        # Trailing tokens are the free-form intent string. Empty intent
+        # is permitted (the mission-control policy treats it as idle),
+        # so `/mission_start` alone is parseable. Whitespace is
+        # collapsed to a single space so log lines and `world.target`
+        # entries don't carry stray indentation.
+        intent = " ".join(arg_str.split())
+        return Command(
+            cmd=CommandName.MISSION_START,
+            sender=sender,
+            args={"intent": intent},
+            safety=default_safety,
+        )
+
     if name in _SLASH_TO_CMD:
         return Command(
             cmd=_SLASH_TO_CMD[name],

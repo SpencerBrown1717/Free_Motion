@@ -31,6 +31,8 @@ jobs:
           python -c "from freemotion.vision import PiCameraSource; print('PiCameraSource lazy import ok')"
           PYTHONPATH=examples/pi_camera_demo python -c "import pi_camera_demo; print('pi_camera_demo ok')"
           python -c "from freemotion.mission_control import GemmaMissionControl, make_mission_from_config; print('GemmaMissionControl lazy import ok')"
+          python -c "from freemotion.agent import MissionLoop, make_mission_start_handler; print('MissionLoop import ok')"
+          PYTHONPATH=examples/pi_closed_loop_demo python -c "import pi_closed_loop_demo; print('pi_closed_loop_demo ok')"
 
       - name: tests
         run: pytest -q tests

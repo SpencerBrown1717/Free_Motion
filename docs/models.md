@@ -252,6 +252,8 @@ Reply
 
 [`examples/local_sim_demo.py`](../examples/local_sim_demo.py) closes the loop with both mocks plus `WorldState`: vision detections feed `world.see(...)`, mission decisions consume the snapshot, the router executes the resulting `Command`, and post-dispatch hardware state is reflected back into the world. When real adapters land, swapping each is one config flag — no other code changes.
 
+[`examples/pi_closed_loop_demo/`](../examples/pi_closed_loop_demo/) is the **end-to-end real-hardware version** of that loop (Step 2). It composes `PiCameraSource` + `YoloVision` + `WorldState` + `GemmaMissionControl` + `SafetyGate` + `PiHardwareController` + `MissionLoop` behind the existing `Agent`/`Router`. The loop is allowed to dispatch only `MOVE` (per [ADR-0010](decisions.md)) so an LLM hallucination cannot arm or disarm the device; ARM/DISARM/STOP stay operator-driven through Telegram. Canonical reference: [`docs/pi-closed-loop.md`](pi-closed-loop.md).
+
 ## Adding your own backend
 
 The Protocol is `runtime_checkable`. Implement the methods, instantiate, pass to whatever wires it in. No registration ceremony, no plugin manager. See `MockVision` / `MockMissionControl` for the shape.

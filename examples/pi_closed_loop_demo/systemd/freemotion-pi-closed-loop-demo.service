@@ -1,0 +1,15 @@
+[Unit]
+Description=Free Motion pi_closed_loop_demo (Step 2 — full Pi closed loop)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/freemotion.env
+WorkingDirectory=%h/src/Free_Motion
+ExecStart=%h/src/Free_Motion/.venv/bin/python examples/pi_closed_loop_demo/pi_closed_loop_demo.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -275,3 +275,68 @@ def test_parse_slash_move_non_numeric() -> None:
             "/move a b c", sender="chat:1", default_safety=SafetyMode.BENCH
         )
     assert exc.value.code == ErrorCode.BAD_ARGS
+
+
+# -- mission_start (Step 2 — full Pi closed loop) ---------------------
+
+
+def test_command_name_includes_mission_start() -> None:
+    """Additive change per ADR-0002 / ADR-0010 — no v bump."""
+    assert CommandName.MISSION_START.value == "mission_start"
+
+
+def test_parse_slash_mission_start_no_intent() -> None:
+    cmd = parse_slash(
+        "/mission_start",
+        sender="chat:1",
+        default_safety=SafetyMode.BENCH,
+    )
+    assert cmd.cmd == CommandName.MISSION_START
+    # Empty intent is permitted; the handler falls back to its default.
+    assert cmd.args == {"intent": ""}
+
+
+def test_parse_slash_mission_start_with_intent() -> None:
+    cmd = parse_slash(
+        "/mission_start follow person",
+        sender="chat:1",
+        default_safety=SafetyMode.BENCH,
+    )
+    assert cmd.cmd == CommandName.MISSION_START
+    assert cmd.args == {"intent": "follow person"}
+
+
+def test_parse_slash_mission_start_collapses_whitespace() -> None:
+    cmd = parse_slash(
+        "/mission_start    follow   person",
+        sender="chat:1",
+        default_safety=SafetyMode.BENCH,
+    )
+    assert cmd.args == {"intent": "follow person"}
+
+
+def test_parse_slash_mission_start_inherits_default_safety() -> None:
+    cmd = parse_slash(
+        "/mission_start follow",
+        sender="chat:1",
+        default_safety=SafetyMode.DRY_RUN,
+    )
+    assert cmd.safety == SafetyMode.DRY_RUN
+
+
+def test_parse_command_json_accepts_mission_start() -> None:
+    raw = json.dumps(
+        {
+            "v": 0,
+            "id": "x",
+            "ts": "x",
+            "from": "openclaw",
+            "cmd": "mission_start",
+            "args": {"intent": "follow person"},
+            "safety": "bench",
+        }
+    )
+    cmd = parse_command_json(raw)
+    assert cmd.cmd == CommandName.MISSION_START
+    assert cmd.args == {"intent": "follow person"}
+    assert cmd.safety == SafetyMode.BENCH

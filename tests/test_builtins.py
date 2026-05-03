@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any, Dict
+
 from freemotion.agent import (
     make_arm_handler,
     make_capabilities_handler,
     make_disarm_handler,
+    make_mission_start_handler,
     make_move_handler,
     make_ping_handler,
     make_status_handler,
@@ -225,3 +228,146 @@ def test_move_handler_unarmed_returns_error() -> None:
     assert reply.ok is False
     assert reply.error is not None
     assert reply.error.code == ErrorCode.UNSAFE_IN_MODE
+
+
+# --- mission_start handler + status with mission_loop ---
+
+
+class _FakeLoop:
+    """Stand-in for `MissionLoop`. Only what the handlers and status
+    handler actually call: `start(intent=...)`, `state() -> dict`."""
+
+    def __init__(
+        self,
+        *,
+        already_running: bool = False,
+        start_raises: bool = False,
+        state_raises: bool = False,
+        state_returns_non_dict: bool = False,
+    ) -> None:
+        self._running = already_running
+        self.start_calls: list[str] = []
+        self.start_raises = start_raises
+        self.state_raises = state_raises
+        self.state_returns_non_dict = state_returns_non_dict
+
+    def start(self, *, intent: str) -> bool:
+        self.start_calls.append(intent)
+        if self.start_raises:
+            raise RuntimeError("start failed")
+        if self._running:
+            return False
+        self._running = True
+        return True
+
+    def state(self) -> Dict[str, Any]:
+        if self.state_raises:
+            raise RuntimeError("state failed")
+        if self.state_returns_non_dict:
+            return "not a dict"  # type: ignore[return-value]
+        return {
+            "running": self._running,
+            "intent": self.start_calls[-1] if self.start_calls else None,
+            "tick_count": 1 if self._running else 0,
+        }
+
+
+def test_mission_start_handler_starts_loop_in_bench() -> None:
+    loop = _FakeLoop()
+    handler = make_mission_start_handler(_cfg(), mission_loop=loop)
+    cmd = Command(
+        cmd=CommandName.MISSION_START,
+        sender="x",
+        args={"intent": "follow person"},
+        safety=SafetyMode.BENCH,
+    )
+    reply = handler(cmd)
+    assert reply.ok is True
+    assert reply.state == "running"
+    assert "follow person" in reply.message
+    assert reply.telemetry["running"] is True
+    assert loop.start_calls == ["follow person"]
+
+
+def test_mission_start_handler_refuses_in_dry_run() -> None:
+    loop = _FakeLoop()
+    handler = make_mission_start_handler(_cfg(), mission_loop=loop)
+    cmd = Command(
+        cmd=CommandName.MISSION_START,
+        sender="x",
+        args={"intent": "follow"},
+        safety=SafetyMode.DRY_RUN,
+    )
+    reply = handler(cmd)
+    assert reply.ok is False
+    assert reply.error is not None
+    assert reply.error.code == ErrorCode.UNSAFE_IN_MODE
+    # Loop was never asked to start.
+    assert loop.start_calls == []
+
+
+def test_mission_start_handler_falls_back_to_default_intent() -> None:
+    loop = _FakeLoop()
+    handler = make_mission_start_handler(
+        _cfg(), mission_loop=loop, default_intent="follow person"
+    )
+    cmd = Command(
+        cmd=CommandName.MISSION_START,
+        sender="x",
+        args={"intent": ""},
+        safety=SafetyMode.BENCH,
+    )
+    reply = handler(cmd)
+    assert reply.ok is True
+    assert loop.start_calls == ["follow person"]
+
+
+def test_mission_start_handler_idempotent_when_already_running() -> None:
+    loop = _FakeLoop(already_running=True)
+    handler = make_mission_start_handler(_cfg(), mission_loop=loop)
+    cmd = Command(
+        cmd=CommandName.MISSION_START,
+        sender="x",
+        args={"intent": "follow"},
+        safety=SafetyMode.BENCH,
+    )
+    reply = handler(cmd)
+    assert reply.ok is True
+    assert "already running" in reply.message
+
+
+def test_mission_start_handler_surfaces_internal_error() -> None:
+    loop = _FakeLoop(start_raises=True)
+    handler = make_mission_start_handler(_cfg(), mission_loop=loop)
+    cmd = Command(
+        cmd=CommandName.MISSION_START,
+        sender="x",
+        args={"intent": "x"},
+        safety=SafetyMode.BENCH,
+    )
+    reply = handler(cmd)
+    assert reply.ok is False
+    assert reply.error is not None
+    assert reply.error.code == ErrorCode.INTERNAL
+
+
+def test_status_handler_includes_mission_loop_state() -> None:
+    loop = _FakeLoop(already_running=True)
+    handler = make_status_handler(_cfg(), mission_loop=loop)
+    cmd = Command(cmd=CommandName.STATUS, sender="x")
+    reply = handler(cmd)
+    assert reply.ok is True
+    assert "mission_loop" in reply.telemetry
+    assert reply.telemetry["mission_loop"]["running"] is True
+    # Human-readable summary too.
+    assert "mission: running" in reply.message
+
+
+def test_status_handler_tolerates_loop_state_exception() -> None:
+    loop = _FakeLoop(state_raises=True)
+    handler = make_status_handler(_cfg(), mission_loop=loop)
+    cmd = Command(cmd=CommandName.STATUS, sender="x")
+    reply = handler(cmd)
+    assert reply.ok is True
+    assert reply.telemetry["mission_loop"]["running"] is False
+    assert "loop.state() raised" in reply.telemetry["mission_loop"]["error"]
