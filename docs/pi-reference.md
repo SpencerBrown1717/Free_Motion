@@ -334,6 +334,9 @@ The following documents all tell the same story about the Pi reference path. If 
 | [ROADMAP.md](../ROADMAP.md) | Where Steps 4 and 5 live in the milestone story. Marks the Pi-first lockdown complete; M5 Phase 1 is Jetson with the contract this page locks and the benchmark on the next page. |
 | [CHANGELOG.md](../CHANGELOG.md) | Per-step delta log. Steps 4 and 5 entries point back here. |
 | [docs/decisions.md](decisions.md) | ADR ledger. ADR-0012 records the locking rationale; ADR-0013 records the benchmark rationale. |
+| [docs/jetson-phase1.md](jetson-phase1.md) | The M5 Phase 1 bring-up plan — must-keep / allowed-to-differ / first target demo / acceptance gate. Mirrors §10 below for the operator. |
+| [docs/jetson-mapping.md](jetson-mapping.md) | The M5 Phase 1 dependency / env-var / camera-path / model-runtime / unsupported-features mapping. The companion to `jetson-phase1.md`. |
+| [docs/releases/v0.2.0.md](releases/v0.2.0.md) | The Pi-first lockdown release notes (`v0.2.0`). What is locked, what is still open, backward compatibility. |
 
 ---
 
@@ -403,5 +406,8 @@ When all five are obvious, Step 4 is done.
 - [docs/pi-failure-modes.md](pi-failure-modes.md) — Step 3 lock (environmental failures + runbook).
 - [docs/pi-hardware.md](pi-hardware.md) — M4 lock (controller + safety gate + bench flow).
 - [docs/pi-camera.md](pi-camera.md) — Step 1 lock (camera adapter).
+- [docs/jetson-phase1.md](jetson-phase1.md) — M5 Phase 1 plan (must-keep / allowed-to-differ / first target / acceptance gate).
+- [docs/jetson-mapping.md](jetson-mapping.md) — M5 Phase 1 dependency / env-var / camera / model / unsupported mapping.
+- [docs/releases/v0.2.0.md](releases/v0.2.0.md) — the Pi-first lockdown release notes.
 - [docs/decisions.md](decisions.md) — ADR ledger; ADR-0012 is the Step 4 lock rationale; ADR-0013 is the Step 5 benchmark rationale.
 - [SAFETY.md](../SAFETY.md) — operator-side bench rules.

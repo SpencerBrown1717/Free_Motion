@@ -63,7 +63,7 @@ Every layer is a `Protocol` you can implement. See [`docs/models.md`](docs/model
 
 - **Shipped:** Telegram transport (M0); protocol v0 (M1); device runtime — config + router + agent (M2); mock hardware (M2); per-command deny list (M2); vision and mission interfaces + mocks (M3 partial); world state (M3); end-to-end loop demo (M3); Pi hardware controller, bench demo, and SafetyGate (M4); `YoloVision` real perception adapter (post-M4); `GemmaMissionControl` real decision adapter (post-M4); `PiCameraSource` live-camera adapter + `pi_camera_demo` (Step 1); `MissionLoop` + `pi_closed_loop_demo` — full Pi closed loop, Telegram → live YOLO → world → Gemma → bench-safe MOVE → `/status`, with `/stop` halting the loop and dropping pins LOW unconditionally (Step 2); stale-world refusal, per-stage consecutive counters with `degraded` summary, hung-tick handling, and `graceful_shutdown` ordering — every environmental failure (camera unplugged, vision drop, Gemma hang, repeated dispatch fail, SIGTERM, restart) is contracted and tested (Step 3, [`docs/pi-failure-modes.md`](docs/pi-failure-modes.md)); Pi reference architecture is locked — one canonical Pi path, frozen command surface, frozen hardware/model paths, frozen env-var/safety/status contracts, and a defined "same contract, different hardware" target for M5 Jetson (Step 4, [`docs/pi-reference.md`](docs/pi-reference.md)); **`pi_follow_bench` named benchmark — fixed 10-step protocol, frozen JSON artifact (schema v1), three failure injections (camera offline, mission offline, vision drop); one CI-mode harness (~1s mock chain) and one bench-mode runner (real Pi rig); the M5 Phase 1 acceptance test (Step 5, [`docs/pi-benchmark.md`](docs/pi-benchmark.md))**.
 - **Pi-first lockdown:** complete (Steps 1–5 all shipped).
-- **Next milestone:** **M5 Phase 1 — Jetson Nano.** Same contract, different hardware. Acceptance is `examples/jetson_closed_loop_demo/` running the canonical command set against real Jetson hardware while every contract in [`docs/pi-reference.md`](docs/pi-reference.md) §6 holds **and** a Jetson rig produces a `pi_follow_bench`-shaped artifact.
+- **Next milestone:** **M5 Phase 1 — Jetson Nano.** Same contract, different hardware. The bring-up plan ([`docs/jetson-phase1.md`](docs/jetson-phase1.md)) and dependency / env-var / camera / model mapping ([`docs/jetson-mapping.md`](docs/jetson-mapping.md)) are locked. Acceptance is `examples/jetson_closed_loop_demo/` running the canonical command set against real Jetson hardware while every contract in [`docs/pi-reference.md`](docs/pi-reference.md) §6 holds **and** a Jetson rig produces a `pi_follow_bench`-shaped artifact.
 - **Mocked / not yet real:** higher autonomy (multi-step plans, agent loops, tool use). Out of scope by design — the v1 decision contract is one structured `MissionDecision` per call.
 - **Not started:** Jetson / ESP32 / Arduino support (M5).
 
@@ -95,6 +95,8 @@ docs/
 ├── architecture.md   # how the modules fit
 ├── decisions.md      # ADR ledger
 ├── demo.md           # the demos and what each one proves
+├── jetson-mapping.md # Jetson dependency / env-var / camera / model mapping (M5 Phase 1, Step 9)
+├── jetson-phase1.md  # Jetson Phase 1 bring-up plan (M5, Step 8)
 ├── models.md         # vision + mission control swap path
 ├── pi-benchmark.md   # frozen pi_follow_bench protocol (Step 5)
 ├── pi-camera.md      # PiCameraSource + USB webcam alternative (Step 1)
@@ -105,6 +107,7 @@ docs/
 ├── pi-runtime.md     # how to write a device on the runtime
 ├── pi-setup.md       # how to prepare a Pi
 ├── protocol.md       # command + reply envelope contract
+├── releases/         # release notes (v0.2.0 — Pi-first lockdown)
 └── issues/           # drafted issue packs + file_issues.sh
 ```
 
