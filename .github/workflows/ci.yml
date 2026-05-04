@@ -33,6 +33,24 @@ jobs:
           python -c "from freemotion.mission_control import GemmaMissionControl, make_mission_from_config; print('GemmaMissionControl lazy import ok')"
           python -c "from freemotion.agent import MissionLoop, make_mission_start_handler; print('MissionLoop import ok')"
           PYTHONPATH=examples/pi_closed_loop_demo python -c "import pi_closed_loop_demo; print('pi_closed_loop_demo ok')"
+          PYTHONPATH=examples/pi_follow_bench:examples/pi_closed_loop_demo python -c "import benchmark, pi_follow_bench; print('pi_follow_bench ok')"
 
       - name: tests
         run: pytest -q tests
+
+      - name: pi_follow_bench (ci mode)
+        run: |
+          # Clean run + each inject — every one must pass.
+          # `--mode=ci` uses MockHardwareController + MockVision +
+          # MockMissionControl; no Pi, no models, no env vars needed.
+          python examples/pi_follow_bench/pi_follow_bench.py --log-level=ERROR run \
+            --mode=ci --hold=0.3 --tick-interval=0.05 \
+            --min-loop-ticks=2 --min-move-dispatches=1 \
+            --output=- > /tmp/pfb-clean.json
+          python -c "import json; r=json.load(open('/tmp/pfb-clean.json')); assert r['success'], r['criteria']; print('pi_follow_bench clean: PASS')"
+          for inject in camera_offline mission_offline vision_drop_after_n; do
+            python examples/pi_follow_bench/pi_follow_bench.py --log-level=ERROR run \
+              --mode=ci --inject=$inject --hold=0.5 --tick-interval=0.05 \
+              --stale-world-timeout=0.2 --output=- > /tmp/pfb-$inject.json
+            python -c "import json,sys; r=json.load(open('/tmp/pfb-$inject.json')); assert r['success'], r['criteria']; print('pi_follow_bench $inject: PASS')"
+          done

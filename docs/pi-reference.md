@@ -2,7 +2,7 @@
 
 This is the **single source of truth** for what a Free Motion device on a Raspberry Pi *is*. Step 4 of the Pi-first lockdown plan: name the canonical Pi path; freeze the supported command set, hardware path, model path, env-var contract, safety contract, status contract, and failure model; define what M5 Jetson must keep identical and what is allowed to differ.
 
-> **Status.** Locked. Locking decisions are recorded in [ADR-0012](decisions.md). Subsequent steps build on this surface — Step 5 ships a named, repeatable benchmark task against this exact contract; M5 Phase 1 (Jetson Nano) ports this contract to a different SoC. Both gates are explicit: nothing in M5 is allowed to drift the surfaces frozen here without an ADR.
+> **Status.** Locked. Locking decisions are recorded in [ADR-0012](decisions.md). Step 5 shipped the named benchmark — [`pi_follow_bench`](../examples/pi_follow_bench/) — that verifies this exact contract on a real rig with a fixed 10-step protocol and a stable JSON artifact ([ADR-0013](decisions.md), [`docs/pi-benchmark.md`](pi-benchmark.md)). M5 Phase 1 (Jetson Nano) ports this contract to a different SoC; the acceptance test is a Jetson rig producing a `pi_follow_bench`-shaped artifact. Nothing in M5 is allowed to drift the surfaces frozen here without an ADR.
 
 ---
 
@@ -320,8 +320,9 @@ The following documents all tell the same story about the Pi reference path. If 
 | Doc | Role |
 |---|---|
 | [README.md](../README.md) | Entry point. One-paragraph claim about what a Pi Free Motion device is, plus a pointer to this page and the demo. |
-| [GETTING_STARTED.md](../GETTING_STARTED.md) | Two paths: laptop demo (no hardware) and Pi reference path (this page). Step-by-step from clone to working demo. |
+| [GETTING_STARTED.md](../GETTING_STARTED.md) | Four paths: laptop demo (Path A), bench rig (Path B), full closed loop (Path C), benchmark verification (Path D). Step-by-step from clone to passing benchmark. |
 | [docs/pi-reference.md](pi-reference.md) | **This document.** The 10-point lock — command surface, hardware path, model path, env contract, safety contract, status contract, failure model, alignment, M5 port target. |
+| [docs/pi-benchmark.md](pi-benchmark.md) | The frozen `pi_follow_bench` protocol: 10-step sequence, success criteria, JSON artifact schema. Step 5's lock; the **execution proof** for this page's contract. |
 | [docs/pi-closed-loop.md](pi-closed-loop.md) | The architecture-level reference — how the components compose, the loop body in pseudocode, the supported command table, the loop-level failure handling. Step 2's lock; this page is its Step 4 superset. |
 | [docs/pi-failure-modes.md](pi-failure-modes.md) | The environmental failure reference plus the operator runbook. Step 3's lock. |
 | [docs/pi-hardware.md](pi-hardware.md) | The M4 hardware-only reference: controller, SafetyGate, bench flow. The "what's real on the Pi today" table. |
@@ -329,9 +330,10 @@ The following documents all tell the same story about the Pi reference path. If 
 | [docs/pi-runtime.md](pi-runtime.md) | The contributor-facing reference for building **a Pi device on the runtime**, not specifically the closed-loop reference. The minimal-device recipe and the env-var table for `Config`. |
 | [docs/pi-setup.md](pi-setup.md) | OS-level prep: flashing, SSH, virtualenv, secrets file. Independent of which demo you run. |
 | [docs/models.md](models.md) | The vision + mission control swap path. The interfaces, the mocks, and the real adapters' install commands. |
-| [ROADMAP.md](../ROADMAP.md) | Where Step 4 lives in the milestone story. Marks Step 4 shipped; Step 5 is the named-benchmark gate; M5 Phase 1 is Jetson with the contract this page locks. |
-| [CHANGELOG.md](../CHANGELOG.md) | Per-step delta log. Step 4's entry points back here. |
-| [docs/decisions.md](decisions.md) | ADR ledger. ADR-0012 records the locking rationale. |
+| [examples/pi_follow_bench/README.md](../examples/pi_follow_bench/README.md) | The benchmark operator runbook. Install, run, view, interpret. The standard `jq` / `diff` patterns for comparing runs. |
+| [ROADMAP.md](../ROADMAP.md) | Where Steps 4 and 5 live in the milestone story. Marks the Pi-first lockdown complete; M5 Phase 1 is Jetson with the contract this page locks and the benchmark on the next page. |
+| [CHANGELOG.md](../CHANGELOG.md) | Per-step delta log. Steps 4 and 5 entries point back here. |
+| [docs/decisions.md](decisions.md) | ADR ledger. ADR-0012 records the locking rationale; ADR-0013 records the benchmark rationale. |
 
 ---
 
@@ -364,14 +366,14 @@ The Pi reference architecture is the **M5 baseline**. M5 Phase 1 (Jetson Nano) i
 | systemd unit | New `freemotion-jetson-closed-loop-demo.service`. | Same Restart, EnvironmentFile, and graceful-shutdown ordering as the Pi unit. |
 | OS prep | A new `docs/jetson-setup.md`. | Mirrors `docs/pi-setup.md` structure so the operator experience is parallel. |
 
-### M5 Phase 1 acceptance criteria (preview, not part of this lock)
+### M5 Phase 1 acceptance criteria
 
-A Jetson port is "done" when:
+A Jetson port is "done" when **all five** are true:
 
 1. `examples/jetson_closed_loop_demo/` runs the canonical command set against real hardware.
 2. Every contract in §6 holds — verifiable by running the existing test suite against a Jetson-mocked controller and a Jetson-mocked camera.
 3. Every telemetry key in §7 is present in `/status`.
-4. The named benchmark task from Step 5 (when it ships) runs on Jetson with the same success criteria.
+4. **A Jetson rig produces a `pi_follow_bench`-shaped artifact** — the named benchmark task from Step 5 ([`pi-benchmark.md`](pi-benchmark.md), [ADR-0013](decisions.md)) runs on Jetson with the same success criteria. Renaming the runner to `jetson_follow_bench` is allowed; the **schema, sequence, and criteria are not**. The benchmark is the operator-facing proof that the contract holds end-to-end on the new platform.
 5. `docs/jetson-reference.md` exists, structured like this page, and explicitly references this page as the parent contract.
 
 Anything beyond these criteria is additive and lives in a future ADR. Step 4 does not lock M5 Phase 2 (ESP32) or Phase 3 (Arduino) — those have their own constraint sets and will be defined when they ship.
@@ -380,7 +382,7 @@ Anything beyond these criteria is additive and lives in a future ADR. Step 4 doe
 
 ## Move-to-M5 rule
 
-You move to M5 only when **all 10 sections above are aligned in code, tests, and docs**, and Step 5 (the repeatable Pi benchmark demo) has shipped. Step 4 is done as of this page's commit; Step 5 is the next gate.
+You move to M5 only when **all 10 sections above are aligned in code, tests, and docs**, and Step 5 (the repeatable Pi benchmark demo) has shipped. Both gates are now satisfied: Step 4 is done; Step 5 shipped `pi_follow_bench` (ADR-0013, [`pi-benchmark.md`](pi-benchmark.md)). M5 Phase 1 (Jetson Nano) is the next milestone, gated on `pi_follow_bench` passing on a real Pi bench rig.
 
 ## Definition of done (Step 4)
 
@@ -396,9 +398,10 @@ When all five are obvious, Step 4 is done.
 
 ## Related
 
+- [docs/pi-benchmark.md](pi-benchmark.md) — Step 5 lock (frozen `pi_follow_bench` protocol — sequence, criteria, artifact schema).
 - [docs/pi-closed-loop.md](pi-closed-loop.md) — Step 2 lock (architecture + loop body + components).
 - [docs/pi-failure-modes.md](pi-failure-modes.md) — Step 3 lock (environmental failures + runbook).
 - [docs/pi-hardware.md](pi-hardware.md) — M4 lock (controller + safety gate + bench flow).
 - [docs/pi-camera.md](pi-camera.md) — Step 1 lock (camera adapter).
-- [docs/decisions.md](decisions.md) — ADR ledger; ADR-0012 is the Step 4 lock rationale.
+- [docs/decisions.md](decisions.md) — ADR ledger; ADR-0012 is the Step 4 lock rationale; ADR-0013 is the Step 5 benchmark rationale.
 - [SAFETY.md](../SAFETY.md) — operator-side bench rules.

@@ -106,6 +106,39 @@ Full operator walkthrough (autostart, troubleshooting, exact replies for every c
 
 Full operator walkthrough (failure modes, telemetry shape, runbook): [`examples/pi_closed_loop_demo/README.md`](examples/pi_closed_loop_demo/README.md). The architectural lock with every contract spelled out: [`docs/pi-reference.md`](docs/pi-reference.md). The runbook for when something goes wrong: [`docs/pi-failure-modes.md`](docs/pi-failure-modes.md).
 
+## Path D — verify your Pi rig with `pi_follow_bench`
+
+Once Path C runs end-to-end, prove the locked contract holds with the named benchmark. `pi_follow_bench` drives the same stack through a fixed 10-step command sequence, applies fixed pass/fail criteria, and writes a structured JSON artifact you can compare across runs.
+
+### Why bother
+
+- **Verifies what Step 4 locked.** The benchmark asserts the 8-command surface, the safety contracts, the status telemetry shape, and the failure-mode guarantees from [`docs/pi-reference.md`](docs/pi-reference.md) on **your** rig.
+- **Makes "the Pi works" precise.** "The demo seemed to work" becomes "`pi_follow_bench` returned `success: true`."
+- **It's the gate for M5 Jetson.** A Jetson port is "done" only when a Jetson rig produces a `pi_follow_bench`-shaped artifact. Today, your Pi is the reference for that.
+
+### Steps
+
+1. **Finish Path C first.** The benchmark uses the same wiring; if `pi_closed_loop_demo` doesn't run, the benchmark won't either.
+2. **Run the benchmark on the Pi:**
+   ```bash
+   source ~/src/Free_Motion/.venv/bin/activate
+   cd ~/src/Free_Motion
+   python examples/pi_follow_bench/pi_follow_bench.py run \
+     --mode=bench --hold=10 --print-human
+   ```
+   Stand in front of the camera during the 10-second hold. The artifact lands at `~/.cache/freemotion/results/pi_follow_bench-bench-<utc-stamp>.json`.
+3. **Read the verdict.** The runner prints `verdict: PASS` (exit 0) or `verdict: FAIL` (exit 1). On a PASS, the artifact records every contract that held; on a FAIL, the artifact's `criteria.*` and `command_sequence[*].error_*` fields tell you exactly which contract regressed.
+4. **(Optional) Run the failure injections** to confirm the safety contracts hold under adverse conditions:
+   ```bash
+   for inject in camera_offline mission_offline vision_drop_after_n; do
+     python examples/pi_follow_bench/pi_follow_bench.py run \
+       --mode=bench --inject=$inject --hold=5 --print-human
+   done
+   ```
+   Each must pass. The whole point of the injects is that the safety contracts hold even when reality misbehaves.
+
+Full runbook (interpretation, comparing runs across days, the systemd one-shot unit): [`examples/pi_follow_bench/README.md`](examples/pi_follow_bench/README.md). The frozen protocol: [`docs/pi-benchmark.md`](docs/pi-benchmark.md).
+
 ## Safety guarantees
 
 The runtime makes twelve contracts about hardware actuation and the closed-loop runtime. Read [`docs/pi-reference.md`](docs/pi-reference.md) §6 for the full list; the short form:
@@ -122,6 +155,7 @@ The runtime makes twelve contracts about hardware actuation and the closed-loop 
 ## Where to read next
 
 - **Pi reference architecture (the lock):** [`docs/pi-reference.md`](docs/pi-reference.md)
+- **Named, repeatable Pi benchmark:** [`docs/pi-benchmark.md`](docs/pi-benchmark.md) and [`examples/pi_follow_bench/README.md`](examples/pi_follow_bench/README.md)
 - **End-to-end closed-loop architecture:** [`docs/pi-closed-loop.md`](docs/pi-closed-loop.md)
 - **Operator runbook for environmental failures:** [`docs/pi-failure-modes.md`](docs/pi-failure-modes.md)
 - **Pi hardware controller, safety gate, bench flow:** [`docs/pi-hardware.md`](docs/pi-hardware.md)

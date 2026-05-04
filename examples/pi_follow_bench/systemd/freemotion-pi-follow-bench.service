@@ -1,0 +1,16 @@
+[Unit]
+Description=Free Motion pi_follow_bench (Step 5 — named Pi benchmark, one-shot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/freemotion.env
+WorkingDirectory=%h/src/Free_Motion
+# Bench mode + default tunables. Override in a drop-in if you need a
+# different intent, hold window, or stale-world timeout. The artifact
+# is written to ~/.cache/freemotion/results/ by default.
+ExecStart=%h/src/Free_Motion/.venv/bin/python examples/pi_follow_bench/pi_follow_bench.py run --mode=bench --print-human
+
+[Install]
+WantedBy=default.target
