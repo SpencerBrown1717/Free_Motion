@@ -4,6 +4,39 @@ All notable changes to Free Motion are recorded here. Format follows [Keep a Cha
 
 ## [Unreleased]
 
+_Nothing yet. Next: [M5 Phase 1 — Jetson Nano](ROADMAP.md#what-to-build-next), gated on `pi_follow_bench` passing on a real Pi bench rig per [`docs/pi-reference.md` §10](docs/pi-reference.md)._
+
+## [0.2.0] — 2026-05-03 (Pi-first lockdown)
+
+The Pi-first lockdown release. Every adapter on the documented Pi reference path is now real (not mocked); the contract those adapters honor is locked in [`docs/pi-reference.md`](docs/pi-reference.md); a single named operator-runnable benchmark — `pi_follow_bench` — verifies the contract holds end-to-end on a real Pi. This is the gate for [M5 Phase 1 (Jetson Nano)](ROADMAP.md#what-to-build-next): a Jetson port is "done" only when a Jetson rig produces a `pi_follow_bench`-shaped artifact (renamed `jetson_follow_bench` is allowed; the schema, sequence, and criteria are not).
+
+Full release notes: [`docs/releases/v0.2.0.md`](docs/releases/v0.2.0.md). Highlights below; each line links to the section that landed it.
+
+**Locked surfaces (do not move under you in 0.2.x):**
+
+- Protocol v0 — slash + JSON, `v: 0` ([`docs/protocol.md`](docs/protocol.md)).
+- Eight-command surface — `/ping /capabilities /status /arm /disarm /move /mission_start /stop` ([`docs/pi-reference.md` §2](docs/pi-reference.md)).
+- Pi hardware path — Pi 4/5 (Pi 3 with caveats), Bookworm+, BCM mode, `armed_pin = 27`, `moving_pin = 22`, `picamera2` `(640, 480)` ([`docs/pi-reference.md` §3](docs/pi-reference.md)).
+- Model path — `PiCameraSource → YoloVision → WorldState → GemmaMissionControl → SafetyGate → PiHardwareController` ([`docs/pi-reference.md` §4](docs/pi-reference.md)).
+- Env-var contract — five tiers, every var documented ([`docs/pi-reference.md` §5](docs/pi-reference.md)).
+- Twelve-guarantee safety contract — `dry_run` cannot actuate; `bench` allows only the bench-safe primitive; `/stop` is unconditional; stale-world refusal; degraded summary; hung-tick handling; ordered graceful shutdown ([`SAFETY.md`](SAFETY.md), [`docs/pi-reference.md` §6](docs/pi-reference.md)).
+- `/status` shape — `controller` + `mission_loop` telemetry, locked human-readable mission line ([`docs/pi-reference.md` §7](docs/pi-reference.md)).
+- Failure model — every documented environmental failure has a behavior + a `/status` signal + an operator action ([`docs/pi-failure-modes.md`](docs/pi-failure-modes.md)).
+- Benchmark protocol — `pi_follow_bench`, frozen 10-step sequence, 8 first-class criteria flags, JSON artifact schema v1 ([`docs/pi-benchmark.md`](docs/pi-benchmark.md), [`examples/pi_follow_bench/README.md`](examples/pi_follow_bench/README.md)).
+- M5 acceptance gate — `pi_follow_bench` is the M5 Phase 1 acceptance test ([`docs/pi-reference.md` §10](docs/pi-reference.md)).
+
+**Still open (not locked by 0.2.x):**
+
+- Jetson Nano support (M5 Phase 1) — next.
+- ESP32 / Arduino (M5 Phase 2 / 3) — deferred behind Jetson.
+- Operator authentication, allow lists, rate limits, watchdogs, link-loss fail-safe — out of scope for the Pi-first lockdown.
+- Multi-device fan-out, second transport (HTTP / MQTT / gRPC) — reserved but not implemented.
+- Hosted Pi CI runner — none; bench-mode `pi_follow_bench` is the operator's responsibility.
+
+**Test count.** 376 passing (+2 skips when `[yolo]` and `[picam]` aren't installed); up from 124 in `v0.1.0-alpha`.
+
+**Backward compatibility.** Protocol unchanged (`v: 0`). Every addition is opt-in via config flag (`FREEMOTION_VISION_BACKEND`, `FREEMOTION_MISSION_BACKEND`, `FREEMOTION_HARDWARE`); default everywhere stays `mock`, so deployments built against `v0.1.0-alpha` continue to work without changes.
+
 ### Added (Step 5 — `pi_follow_bench`, the named repeatable Pi benchmark: frozen 10-step protocol, frozen JSON artifact, three failure injections)
 
 - **`examples/pi_follow_bench/`** — the named, repeatable Pi benchmark. Drives the locked Pi reference architecture ([`docs/pi-reference.md`](docs/pi-reference.md)) through a fixed 10-step command sequence (`/ping`, `/capabilities`, `/status`, `/arm`, `/mission_start <intent>`, observe, `/status`, `/stop`, `/disarm`, `/status`), applies fixed pass/fail criteria, and emits a stable JSON artifact for each run. Runner core in `benchmark.py`; CLI in `pi_follow_bench.py`; one-shot systemd unit in `systemd/freemotion-pi-follow-bench.service`. v1 scope per ADR-0013.
@@ -281,5 +314,6 @@ Recorded in [`docs/decisions.md`](docs/decisions.md):
 
 **M4** — one real hardware demo with full [`SAFETY.md`](SAFETY.md) sign-off.
 
-[Unreleased]: https://github.com/SpencerBrown1717/Free_Motion/compare/v0.1.0-alpha...HEAD
+[Unreleased]: https://github.com/SpencerBrown1717/Free_Motion/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/SpencerBrown1717/Free_Motion/releases/tag/v0.2.0
 [0.1.0-alpha]: https://github.com/SpencerBrown1717/Free_Motion/releases/tag/v0.1.0-alpha
